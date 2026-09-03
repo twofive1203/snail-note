@@ -14,6 +14,7 @@ import {
 } from "@codemirror/view";
 import { oneDarkHighlightStyle, oneDarkTheme } from "@codemirror/theme-one-dark";
 import { saveKeyBinding } from "./editor-shortcuts";
+import { fenceCompleteKeymap } from "./fence-complete";
 import { livePreviewEnabledEffect, livePreviewExtensions } from "./live-preview";
 
 interface MarkdownEditorProps {
@@ -60,6 +61,7 @@ export function MarkdownEditor({
           highlightActiveLine(),
           markdown({ base: markdownLanguage }),
           placeholder("开始书写…"),
+          fenceCompleteKeymap(),
           keymap.of([saveKeyBinding(() => onSaveRef.current()), indentWithTab, ...defaultKeymap, ...historyKeymap]),
           editable.current.of(EditorView.editable.of(!disabled)),
           oneDarkTheme,

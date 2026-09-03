@@ -1,6 +1,7 @@
 import { EditorView } from "@codemirror/view";
 import { fireEvent, render, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { completeFencedCodeOnEnter } from "../src/features/editor/fence-complete";
 import { MarkdownEditor } from "../src/features/editor/MarkdownEditor";
 
 function editorView(container: HTMLElement) {
@@ -111,6 +112,39 @@ describe("MarkdownEditor", () => {
       expect(view.state.doc.toString()).toBe(edited);
       expect(view.contentDOM.textContent).toContain("added");
     });
+  });
+
+  it("completes a closing fence when pressing Enter after ```", () => {
+    const { container } = render(
+      <MarkdownEditor livePreview={false} value="```" onChange={vi.fn()} onSave={vi.fn()} />,
+    );
+    const view = editorView(container);
+    view.dispatch({ selection: { anchor: view.state.doc.length } });
+    expect(completeFencedCodeOnEnter(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe("```\n\n```");
+    expect(view.state.selection.main.head).toBe(4);
+  });
+
+  it("completes a language fence and leaves the cursor inside the block", () => {
+    const { container } = render(
+      <MarkdownEditor livePreview={false} value="```ts" onChange={vi.fn()} onSave={vi.fn()} />,
+    );
+    const view = editorView(container);
+    view.dispatch({ selection: { anchor: view.state.doc.length } });
+    fireEvent.keyDown(view.contentDOM, { key: "Enter" });
+    expect(view.state.doc.toString()).toBe("```ts\n\n```");
+    expect(view.state.sliceDoc(0, view.state.selection.main.head)).toBe("```ts\n");
+  });
+
+  it("does not insert another closer for an already closed fence", () => {
+    const doc = "```\ncode\n```";
+    const { container } = render(
+      <MarkdownEditor livePreview={false} value={doc} onChange={vi.fn()} onSave={vi.fn()} />,
+    );
+    const view = editorView(container);
+    view.dispatch({ selection: { anchor: 3 } });
+    expect(completeFencedCodeOnEnter(view)).toBe(false);
+    expect(view.state.doc.toString()).toBe(doc);
   });
 
   it("applies loaded document content after the initial empty editor", async () => {
