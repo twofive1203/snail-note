@@ -114,6 +114,55 @@ button:disabled { cursor: default; opacity: .45; }
 .markdown-editor .cm-activeLine, .markdown-editor .cm-activeLineGutter { background: rgba(255, 255, 255, .025); }
 .markdown-editor .cm-content { padding: 0 10px; caret-color: #fff; }
 .markdown-editor .cm-focused { outline: none; }
+.markdown-editor.is-live .cm-scroller {
+  padding: 24px 0 80px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 16px;
+  line-height: 1.8;
+}
+.markdown-editor.is-live .cm-content {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 32px;
+}
+.markdown-editor.is-live .cm-line.sn-md-h1 { font-size: 1.75em; font-weight: 700; line-height: 1.35; }
+.markdown-editor.is-live .cm-line.sn-md-h2 { font-size: 1.4em; font-weight: 700; line-height: 1.4; }
+.markdown-editor.is-live .cm-line.sn-md-h3 { font-size: 1.15em; font-weight: 650; }
+.markdown-editor.is-live .cm-line.sn-md-h4,
+.markdown-editor.is-live .cm-line.sn-md-h5,
+.markdown-editor.is-live .cm-line.sn-md-h6 { font-size: 1em; font-weight: 650; }
+.markdown-editor.is-live .sn-md-strong { font-weight: 700; }
+.markdown-editor.is-live .sn-md-em { font-style: italic; }
+.markdown-editor.is-live .sn-md-strike { color: var(--dim); text-decoration: line-through; }
+.markdown-editor.is-live .sn-md-code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: #f0abfc;
+  background: var(--panel);
+  font-family: var(--mono);
+  font-size: .88em;
+}
+.markdown-editor.is-live .sn-md-link { color: var(--accent-soft); text-decoration: underline; text-underline-offset: 2px; }
+.markdown-editor.is-live .cm-line.sn-md-quote {
+  padding-left: 12px;
+  border-left: 3px solid var(--accent);
+  color: var(--dim);
+  background: rgba(139, 92, 246, .06);
+}
+.markdown-editor.is-live .sn-md-mark { color: var(--faint); }
+.markdown-editor.is-live .sn-md-checkbox {
+  margin: 0 6px 0 0;
+  vertical-align: middle;
+  accent-color: var(--accent);
+}
+.markdown-editor.is-live .sn-md-hr {
+  width: 100%;
+  margin: .8em 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+.markdown-editor.is-live .cm-selectionBackground,
+.markdown-editor.is-live .cm-focused .cm-selectionBackground { background: rgba(139, 92, 246, .35); }
 .welcome { display: grid; place-content: center; width: 100%; color: var(--dim); text-align: center; }
 .welcome > span { color: var(--accent-soft); font-size: 42px; }
 .welcome h1 { margin: 8px 0 0; color: var(--text); font-size: 25px; }
@@ -137,6 +186,27 @@ button:disabled { cursor: default; opacity: .45; }
 .markdown-preview th { background: var(--panel); }
 .markdown-preview img { max-width: 100%; }
 .markdown-preview hr { border: 0; border-top: 1px solid var(--border); }
+.markdown-preview .sn-mermaid,
+.markdown-editor.is-live .sn-md-mermaid {
+  overflow-x: auto;
+  margin: .8em 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  text-align: center;
+}
+.markdown-preview .sn-mermaid svg,
+.markdown-editor.is-live .sn-md-mermaid svg { max-width: 100%; height: auto; }
+.markdown-preview .sn-mermaid.is-error,
+.markdown-editor.is-live .sn-md-mermaid.is-error {
+  color: var(--danger);
+  text-align: left;
+  white-space: pre-wrap;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.5;
+}
 
 .statusbar { display: flex; align-items: center; gap: 15px; height: 28px; padding: 0 13px; border-top: 1px solid var(--border); color: var(--faint); background: var(--sidebar); font-size: 11px; }
 .statusbar button { color: var(--faint); font-size: 11px; }

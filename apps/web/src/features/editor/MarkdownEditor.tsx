@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
-import { markdown } from "@codemirror/lang-markdown";
+import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { Compartment, EditorState } from "@codemirror/state";
 import {
   drawSelection,
@@ -13,20 +13,35 @@ import {
 } from "@codemirror/view";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { saveKeyBinding } from "./editor-shortcuts";
+import { livePreviewExtensions } from "./live-preview";
 
 interface MarkdownEditorProps {
   value: string;
   disabled?: boolean;
+  livePreview?: boolean;
   onChange: (value: string) => void;
   onSave: () => void;
 }
 
-export function MarkdownEditor({ value, disabled = false, onChange, onSave }: MarkdownEditorProps) {
+function modeExtensions(livePreview: boolean) {
+  return livePreview
+    ? livePreviewExtensions()
+    : [lineNumbers(), highlightActiveLineGutter(), oneDark];
+}
+
+export function MarkdownEditor({
+  value,
+  disabled = false,
+  livePreview = true,
+  onChange,
+  onSave,
+}: MarkdownEditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
   const editable = useRef(new Compartment());
+  const mode = useRef(new Compartment());
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
 
@@ -37,16 +52,14 @@ export function MarkdownEditor({ value, disabled = false, onChange, onSave }: Ma
       state: EditorState.create({
         doc: value,
         extensions: [
-          lineNumbers(),
-          highlightActiveLineGutter(),
           history(),
           drawSelection(),
           highlightActiveLine(),
-          markdown(),
-          oneDark,
+          markdown({ base: markdownLanguage }),
           placeholder("开始书写…"),
           keymap.of([saveKeyBinding(() => onSaveRef.current()), indentWithTab, ...defaultKeymap, ...historyKeymap]),
           editable.current.of(EditorView.editable.of(!disabled)),
+          mode.current.of(modeExtensions(livePreview)),
           EditorView.lineWrapping,
           EditorView.updateListener.of((update) => {
             if (update.docChanged) onChangeRef.current(update.state.doc.toString());
@@ -73,5 +86,15 @@ export function MarkdownEditor({ value, disabled = false, onChange, onSave }: Ma
     view.current?.dispatch({ effects: editable.current.reconfigure(EditorView.editable.of(!disabled)) });
   }, [disabled]);
 
-  return <div className="markdown-editor" ref={host} aria-label="Markdown 编辑器" />;
+  useEffect(() => {
+    view.current?.dispatch({ effects: mode.current.reconfigure(modeExtensions(livePreview)) });
+  }, [livePreview]);
+
+  return (
+    <div
+      className={`markdown-editor${livePreview ? " is-live" : ""}`}
+      ref={host}
+      aria-label={livePreview ? "Markdown 实时预览编辑器" : "Markdown 编辑器"}
+    />
+  );
 }

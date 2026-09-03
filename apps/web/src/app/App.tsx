@@ -37,6 +37,7 @@ export function App() {
   const [treeFilter, setTreeFilter] = useState("");
   const [collapseSignal, setCollapseSignal] = useState(0);
   const [viewMode, setViewMode] = useState<ViewMode>("edit");
+  const [livePreview, setLivePreview] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
   const [directoryPickerOpen, setDirectoryPickerOpen] = useState(false);
   const [toast, setToast] = useState("");
@@ -316,7 +317,8 @@ export function App() {
             {note.error ? <span className="save-state error" title={note.error}>{note.error}</span> : (
               <span className={`save-state${note.dirty ? " dirty" : ""}`}><i />{note.saving ? "保存中…" : note.dirty ? "未保存" : "已保存"}</span>
             )}
-            <button className={viewMode === "edit" ? "active" : ""} onClick={() => setViewMode("edit")}>✎ <span>编辑</span></button>
+            <button className={viewMode === "edit" && livePreview ? "active" : ""} onClick={() => { setLivePreview(true); setViewMode("edit"); }} title="实时预览">✦ <span>实时</span></button>
+            <button className={viewMode === "edit" && !livePreview ? "active" : ""} onClick={() => { setLivePreview(false); setViewMode("edit"); }} title="Markdown 源码">{'</>'} <span>源码</span></button>
             <button className={viewMode === "split" ? "active" : ""} onClick={() => setViewMode("split")}>◫ <span>分屏</span></button>
             <button className={viewMode === "preview" ? "active" : ""} onClick={() => setViewMode("preview")}>◉ <span>预览</span></button>
             <button className="save-button" disabled={!currentPath || note.saving} onClick={() => void note.save().then((saved) => saved && showToast(note.dirty ? "已保存" : "没有需要保存的修改"))}>保存</button>
@@ -326,7 +328,7 @@ export function App() {
               <>
                 <div className="editor-pane">
                   {note.loading ? <div className="pane-loading">正在加载…</div> : null}
-                  <MarkdownEditor value={note.content} disabled={note.loading} onChange={note.setContent} onSave={() => void note.save().then((saved) => saved && showToast("已保存"))} />
+                  <MarkdownEditor value={note.content} disabled={note.loading} livePreview={livePreview} onChange={note.setContent} onSave={() => void note.save().then((saved) => saved && showToast("已保存"))} />
                 </div>
                 <div className="preview-pane"><MarkdownPreview content={note.content} /></div>
               </>
@@ -337,7 +339,7 @@ export function App() {
 
       <footer className="statusbar">
         <span>{wordCount} 字</span><span>{lineCount} 行</span><span className="status-spacer" />
-        <button disabled={!activeNotebookId} onClick={() => setSearchOpen(true)}>搜索 Ctrl/Cmd + K</button><span>Markdown</span><span>UTF-8</span>
+        <button disabled={!activeNotebookId} onClick={() => setSearchOpen(true)}>搜索 Ctrl/Cmd + K</button><span>{viewMode === "preview" ? "预览" : livePreview ? "实时预览" : "源码"}</span><span>UTF-8</span>
       </footer>
 
       <SearchPanel open={searchOpen} notebookId={activeNotebookId} onClose={() => setSearchOpen(false)} onOpenFile={openFile} />

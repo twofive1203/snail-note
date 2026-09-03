@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { MarkdownPreview } from "../src/features/editor/MarkdownPreview";
 
@@ -14,5 +14,13 @@ describe("MarkdownPreview", () => {
     const { container } = render(<MarkdownPreview content={'<img src="x" onerror="alert(1)"><script>alert(1)</script>'} />);
     expect(container.querySelector("script")).not.toBeInTheDocument();
     expect(container.querySelector("img")).not.toHaveAttribute("onerror");
+  });
+
+  it("renders mermaid fences as diagrams", async () => {
+    const { container } = render(<MarkdownPreview content={"```mermaid\ngraph TD\nA-->B\n```"} />);
+    await waitFor(() => {
+      expect(container.querySelector(".sn-mermaid")).toBeInTheDocument();
+      expect(container.querySelector(".sn-mermaid-svg")).toBeInTheDocument();
+    });
   });
 });
