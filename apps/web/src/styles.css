@@ -161,6 +161,30 @@ button:disabled { cursor: default; opacity: .45; }
   border: 0;
   border-top: 1px solid var(--border);
 }
+.markdown-editor.is-live .sn-md-codeblock {
+  overflow-x: auto;
+  margin: .65em 0;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--panel);
+  font-family: var(--mono);
+  font-size: .88em;
+  line-height: 1.65;
+}
+.markdown-editor.is-live .sn-md-codeblock .cm-line { padding-left: 0; }
+.markdown-editor.is-live .sn-md-codeblock .sn-md-code {
+  padding: 0;
+  border-radius: 0;
+  color: inherit;
+  background: none;
+  font-family: inherit;
+  font-size: inherit;
+}
+.markdown-editor.is-live .sn-md-codeblock .cm-activeLine {
+  background: rgba(255, 255, 255, .04);
+}
 .markdown-editor.is-live .cm-selectionBackground,
 .markdown-editor.is-live .cm-focused .cm-selectionBackground { background: rgba(139, 92, 246, .35); }
 .welcome { display: grid; place-content: center; width: 100%; color: var(--dim); text-align: center; }

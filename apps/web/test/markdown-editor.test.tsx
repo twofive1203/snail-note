@@ -65,6 +65,42 @@ describe("MarkdownEditor", () => {
     expect(container.querySelector(".cm-content")?.textContent ?? "").not.toContain("graph TD");
   });
 
+  it("renders fenced code like preview in live mode", async () => {
+    const onChange = vi.fn();
+    const { container } = render(
+      <MarkdownEditor value={"hello\n\n```\ngood\n```\n\n```\nnice\n```\n"} onChange={onChange} onSave={vi.fn()} />,
+    );
+    await waitFor(() => {
+      const blocks = container.querySelectorAll(".sn-md-codeblock");
+      expect(blocks).toHaveLength(2);
+      expect(blocks[0]).toHaveTextContent("good");
+      expect(blocks[1]).toHaveTextContent("nice");
+    });
+    const text = container.querySelector(".cm-content")?.textContent ?? "";
+    expect(text).toContain("good");
+    expect(text).toContain("nice");
+    expect(text).not.toContain("```");
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("reveals fenced code marks when the cursor is inside the block", async () => {
+    const { container } = render(
+      <MarkdownEditor value={"hello\n\n```\ngood\n```\n"} onChange={vi.fn()} onSave={vi.fn()} />,
+    );
+    await waitFor(() => {
+      expect(container.querySelector(".sn-md-codeblock")).toBeInTheDocument();
+      expect(container.querySelector(".cm-content")?.textContent ?? "").not.toContain("```");
+    });
+    const view = editorView(container);
+    const body = view.state.doc.toString().indexOf("good");
+    view.dispatch({ selection: { anchor: body } });
+    await waitFor(() => {
+      expect(view.contentDOM.textContent).toContain("```");
+      expect(view.contentDOM.textContent).toContain("good");
+      expect(container.querySelector(".sn-md-codeblock")).toBeInTheDocument();
+    });
+  });
+
   it("keeps source edits when switching back to live even if React passes a stale value", async () => {
     const onChange = vi.fn();
     const { container, rerender } = render(

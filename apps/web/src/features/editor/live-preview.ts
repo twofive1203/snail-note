@@ -1,6 +1,6 @@
 import { HighlightStyle, syntaxHighlighting, syntaxTree } from "@codemirror/language";
 import { StateEffect, StateField, type EditorState, type Range } from "@codemirror/state";
-import { Decoration, type DecorationSet, EditorView, ViewPlugin, WidgetType } from "@codemirror/view";
+import { BlockWrapper, Decoration, type DecorationSet, EditorView, ViewPlugin, WidgetType } from "@codemirror/view";
 import { tags as t } from "@lezer/highlight";
 import { mountMermaid } from "./mermaid-render";
 
@@ -124,7 +124,7 @@ function isRevealed(state: EditorState, from: number, to: number) {
 
 function inCodeBlock(node: { parent: { name: string; parent: unknown } | null }) {
   for (let parent = node.parent; parent; parent = parent.parent as typeof parent) {
-    if (parent.name === "FencedCode" || parent.name === "IndentedCode") return true;
+    if (parent.name === "FencedCode" || parent.name === "CodeBlock" || parent.name === "IndentedCode") return true;
   }
   return false;
 }
@@ -150,17 +150,69 @@ function fenceBody(state: EditorState, node: { node: { getChildren(name: string)
   return state.doc.sliceString(first.from, last.to);
 }
 
-function safeBuildDecorations(state: EditorState) {
+type LivePreviewVisuals = {
+  deco: DecorationSet;
+  wrappers: ReturnType<typeof BlockWrapper.set>;
+};
+
+const emptyVisuals: LivePreviewVisuals = {
+  deco: Decoration.none,
+  wrappers: BlockWrapper.set([]),
+};
+
+const codeBlockWrapper = BlockWrapper.create({
+  tagName: "div",
+  attributes: { class: "sn-md-codeblock" },
+});
+
+function closingFenceLine(
+  state: EditorState,
+  node: { from: number; node: { getChildren(name: string): { from: number }[] } },
+) {
+  const openNumber = state.doc.lineAt(node.from).number;
+  const marks = node.node.getChildren("CodeMark");
+  for (let i = marks.length - 1; i >= 0; i -= 1) {
+    const mark = marks[i];
+    if (!mark) continue;
+    const line = state.doc.lineAt(mark.from);
+    if (line.number !== openNumber) return line;
+  }
+  return null;
+}
+
+function hideLine(
+  state: EditorState,
+  line: { from: number; to: number },
+  ranges: Range<Decoration>[],
+  replacedLines: Set<number>,
+) {
+  const to = line.to < state.doc.length ? line.to + 1 : line.to;
+  if (line.from >= to) return;
+  replacedLines.add(line.from);
+  ranges.push(Decoration.replace({ block: true }).range(line.from, to));
+}
+
+function wrapLines(state: EditorState, fromLine: number, toLine: number, wrappers: Range<BlockWrapper>[]) {
+  if (fromLine > toLine) return;
+  const start = state.doc.line(fromLine).from;
+  const endLine = state.doc.line(toLine);
+  const end = endLine.to < state.doc.length ? endLine.to + 1 : state.doc.length;
+  if (start >= end) return;
+  wrappers.push(codeBlockWrapper.range(start, end));
+}
+
+function safeBuildVisuals(state: EditorState) {
   try {
-    return buildDecorations(state);
+    return buildVisuals(state);
   } catch (error) {
     console.error("Failed to build live preview decorations", error);
-    return Decoration.none;
+    return emptyVisuals;
   }
 }
 
-function buildDecorations(state: EditorState) {
+function buildVisuals(state: EditorState): LivePreviewVisuals {
   const ranges: Range<Decoration>[] = [];
+  const wrappers: Range<BlockWrapper>[] = [];
   const lineClasses = new Map<number, string[]>();
   const replacedLines = new Set<number>();
 
@@ -185,21 +237,52 @@ function buildDecorations(state: EditorState) {
       if (headingClass) addLineClasses(node.from, node.to, headingClass);
       if (node.name === "Blockquote") addLineClasses(node.from, node.to, "sn-md-quote");
 
-      if (node.name === "FencedCode" && fenceLanguage(state, node) === "mermaid" && !isRevealed(state, node.from, node.to)) {
-        const range = coveringLines(state, node.from, node.to);
-        if (range.from < range.to) {
-          for (let pos = range.from; pos < range.to; ) {
-            const line = state.doc.lineAt(pos);
-            replacedLines.add(line.from);
-            pos = line.to < state.doc.length ? line.to + 1 : range.to;
+      if (node.name === "FencedCode") {
+        const revealed = isRevealed(state, node.from, node.to);
+        if (fenceLanguage(state, node) === "mermaid" && !revealed) {
+          const range = coveringLines(state, node.from, node.to);
+          if (range.from < range.to) {
+            for (let pos = range.from; pos < range.to; ) {
+              const line = state.doc.lineAt(pos);
+              replacedLines.add(line.from);
+              pos = line.to < state.doc.length ? line.to + 1 : range.to;
+            }
+            ranges.push(
+              Decoration.replace({
+                widget: new MermaidWidget(fenceBody(state, node)),
+                block: true,
+              }).range(range.from, range.to),
+            );
           }
-          ranges.push(
-            Decoration.replace({
-              widget: new MermaidWidget(fenceBody(state, node)),
-              block: true,
-            }).range(range.from, range.to),
-          );
+          return false;
         }
+
+        const openLine = state.doc.lineAt(node.from);
+        const lastLine = state.doc.lineAt(Math.max(node.from, node.to - 1));
+        const closeLine = closingFenceLine(state, node);
+        let fromLine = openLine.number;
+        let toLine = lastLine.number;
+        if (!revealed) {
+          const bodyFrom = openLine.number + 1;
+          const bodyTo = closeLine ? closeLine.number - 1 : lastLine.number;
+          if (bodyFrom <= bodyTo) {
+            hideLine(state, openLine, ranges, replacedLines);
+            if (closeLine) hideLine(state, closeLine, ranges, replacedLines);
+            fromLine = bodyFrom;
+            toLine = bodyTo;
+          }
+        }
+        wrapLines(state, fromLine, toLine, wrappers);
+        return false;
+      }
+
+      if (node.name === "CodeBlock") {
+        wrapLines(
+          state,
+          state.doc.lineAt(node.from).number,
+          state.doc.lineAt(Math.max(node.from, node.to - 1)).number,
+          wrappers,
+        );
         return false;
       }
 
@@ -238,7 +321,10 @@ function buildDecorations(state: EditorState) {
     ranges.push(Decoration.line({ class: classes.join(" ") }).range(from));
   }
 
-  return Decoration.set(ranges, true);
+  return {
+    deco: Decoration.set(ranges, true),
+    wrappers: BlockWrapper.set(wrappers, true),
+  };
 }
 
 const setLivePreviewEnabled = StateEffect.define<boolean>();
@@ -257,20 +343,28 @@ export function livePreviewEnabledEffect(enabled: boolean) {
   return setLivePreviewEnabled.of(enabled);
 }
 
-const livePreviewDecorations = StateField.define<DecorationSet>({
+const livePreviewDecorations = StateField.define<LivePreviewVisuals>({
   create(state) {
-    return state.field(livePreviewEnabled, false) === false ? Decoration.none : safeBuildDecorations(state);
+    return state.field(livePreviewEnabled, false) === false ? emptyVisuals : safeBuildVisuals(state);
   },
-  update(deco, tr) {
-    if (!tr.state.field(livePreviewEnabled)) return Decoration.none;
+  update(visuals, tr) {
+    if (!tr.state.field(livePreviewEnabled)) return emptyVisuals;
     const selecting = tr.state.field(mouseSelecting);
-    if (selecting) return deco.map(tr.changes);
-    if (tr.docChanged || !tr.startState.selection.eq(tr.state.selection) || tr.startState.field(mouseSelecting) || !tr.startState.field(livePreviewEnabled)) {
-      return safeBuildDecorations(tr.state);
+    if (selecting) {
+      return {
+        deco: visuals.deco.map(tr.changes),
+        wrappers: visuals.wrappers.map(tr.changes),
+      };
     }
-    return deco;
+    if (tr.docChanged || !tr.startState.selection.eq(tr.state.selection) || tr.startState.field(mouseSelecting) || !tr.startState.field(livePreviewEnabled)) {
+      return safeBuildVisuals(tr.state);
+    }
+    return visuals;
   },
-  provide: (field) => EditorView.decorations.from(field),
+  provide: (field) => [
+    EditorView.decorations.from(field, (value) => value.deco),
+    EditorView.blockWrappers.from(field, (value) => value.wrappers),
+  ],
 });
 
 const livePreviewMouse = ViewPlugin.fromClass(
