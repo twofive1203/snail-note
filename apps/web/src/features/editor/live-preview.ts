@@ -150,9 +150,19 @@ function fenceBody(state: EditorState, node: { node: { getChildren(name: string)
   return state.doc.sliceString(first.from, last.to);
 }
 
+function safeBuildDecorations(state: EditorState) {
+  try {
+    return buildDecorations(state);
+  } catch (error) {
+    console.error("Failed to build live preview decorations", error);
+    return Decoration.none;
+  }
+}
+
 function buildDecorations(state: EditorState) {
   const ranges: Range<Decoration>[] = [];
   const lineClasses = new Map<number, string[]>();
+  const replacedLines = new Set<number>();
 
   const addLineClass = (pos: number, className: string) => {
     const lineFrom = state.doc.lineAt(pos).from;
@@ -178,6 +188,11 @@ function buildDecorations(state: EditorState) {
       if (node.name === "FencedCode" && fenceLanguage(state, node) === "mermaid" && !isRevealed(state, node.from, node.to)) {
         const range = coveringLines(state, node.from, node.to);
         if (range.from < range.to) {
+          for (let pos = range.from; pos < range.to; ) {
+            const line = state.doc.lineAt(pos);
+            replacedLines.add(line.from);
+            pos = line.to < state.doc.length ? line.to + 1 : range.to;
+          }
           ranges.push(
             Decoration.replace({
               widget: new MermaidWidget(fenceBody(state, node)),
@@ -219,21 +234,39 @@ function buildDecorations(state: EditorState) {
   });
 
   for (const [from, classes] of lineClasses) {
+    if (replacedLines.has(from)) continue;
     ranges.push(Decoration.line({ class: classes.join(" ") }).range(from));
   }
 
   return Decoration.set(ranges, true);
 }
 
+const setLivePreviewEnabled = StateEffect.define<boolean>();
+
+const livePreviewEnabled = StateField.define<boolean>({
+  create: () => true,
+  update(value, tr) {
+    for (const effect of tr.effects) {
+      if (effect.is(setLivePreviewEnabled)) return effect.value;
+    }
+    return value;
+  },
+});
+
+export function livePreviewEnabledEffect(enabled: boolean) {
+  return setLivePreviewEnabled.of(enabled);
+}
+
 const livePreviewDecorations = StateField.define<DecorationSet>({
   create(state) {
-    return buildDecorations(state);
+    return state.field(livePreviewEnabled, false) === false ? Decoration.none : safeBuildDecorations(state);
   },
   update(deco, tr) {
+    if (!tr.state.field(livePreviewEnabled)) return Decoration.none;
     const selecting = tr.state.field(mouseSelecting);
     if (selecting) return deco.map(tr.changes);
-    if (tr.docChanged || !tr.startState.selection.eq(tr.state.selection) || tr.startState.field(mouseSelecting)) {
-      return buildDecorations(tr.state);
+    if (tr.docChanged || !tr.startState.selection.eq(tr.state.selection) || tr.startState.field(mouseSelecting) || !tr.startState.field(livePreviewEnabled)) {
+      return safeBuildDecorations(tr.state);
     }
     return deco;
   },
@@ -289,6 +322,6 @@ const liveHighlight = syntaxHighlighting(
   ]),
 );
 
-export function livePreviewExtensions() {
-  return [mouseSelecting, livePreviewDecorations, liveHighlight, livePreviewMouse];
+export function livePreviewExtensions(enabled = true) {
+  return [mouseSelecting, livePreviewEnabled.init(() => enabled), livePreviewDecorations, liveHighlight, livePreviewMouse];
 }

@@ -107,12 +107,12 @@ button:disabled { cursor: default; opacity: .45; }
 .mode-preview .editor-pane { display: none; }
 .mode-preview .preview-pane { border-left: 0; }
 .pane-loading { position: absolute; z-index: 5; inset: 0; display: grid; place-items: center; color: var(--dim); background: rgba(30, 30, 30, .8); }
-.markdown-editor, .markdown-editor .cm-editor { height: 100%; }
-.markdown-editor .cm-editor { background: var(--bg); }
+.markdown-editor, .markdown-editor .cm-editor { height: 100%; min-height: 0; }
+.markdown-editor .cm-editor { color: var(--text); background: var(--bg); }
 .markdown-editor .cm-scroller { padding: 15px 0 50px; font-family: var(--mono); font-size: 14.5px; line-height: 1.75; }
 .markdown-editor .cm-gutters { min-width: 45px; border: 0; color: var(--faint); background: var(--bg); }
 .markdown-editor .cm-activeLine, .markdown-editor .cm-activeLineGutter { background: rgba(255, 255, 255, .025); }
-.markdown-editor .cm-content { padding: 0 10px; caret-color: #fff; }
+.markdown-editor .cm-content { padding: 0 10px; color: var(--text); caret-color: #fff; }
 .markdown-editor .cm-focused { outline: none; }
 .markdown-editor.is-live .cm-scroller {
   padding: 24px 0 80px;

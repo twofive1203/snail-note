@@ -1,6 +1,14 @@
+import { EditorView } from "@codemirror/view";
 import { fireEvent, render, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { MarkdownEditor } from "../src/features/editor/MarkdownEditor";
+
+function editorView(container: HTMLElement) {
+  const dom = container.querySelector(".cm-editor");
+  const view = dom ? EditorView.findFromDOM(dom as HTMLElement) : null;
+  if (!view) throw new Error("CodeMirror view not found");
+  return view;
+}
 
 describe("MarkdownEditor", () => {
   it("loads Markdown as plain text and handles the save shortcut", () => {
@@ -54,5 +62,67 @@ describe("MarkdownEditor", () => {
     });
     expect(container.querySelector(".cm-content")?.textContent ?? "").toContain("hello");
     expect(container.querySelector(".cm-content")?.textContent ?? "").not.toContain("graph TD");
+  });
+
+  it("keeps source edits when switching back to live even if React passes a stale value", async () => {
+    const onChange = vi.fn();
+    const { container, rerender } = render(
+      <MarkdownEditor livePreview={false} value="hello" onChange={onChange} onSave={vi.fn()} />,
+    );
+    const view = editorView(container);
+    view.dispatch({ changes: { from: 5, insert: " 世界" } });
+    expect(onChange).toHaveBeenCalledWith("hello 世界");
+    expect(view.state.doc.toString()).toBe("hello 世界");
+
+    onChange.mockClear();
+    rerender(<MarkdownEditor livePreview value="hello" onChange={onChange} onSave={vi.fn()} />);
+    await waitFor(() => {
+      expect(container.querySelector(".markdown-editor")).toHaveClass("is-live");
+    });
+    expect(view.state.doc.toString()).toBe("hello 世界");
+    expect(view.contentDOM.textContent).toContain("世界");
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("restores live preview after editing markdown in source mode", async () => {
+    const onChange = vi.fn();
+    const source = "# Title\n\n- [ ] task\n\n[link](https://example.com)\n\n```mermaid\ngraph TD\n  A --> B\n```\n";
+    const { container, rerender } = render(
+      <MarkdownEditor livePreview value={source} onChange={onChange} onSave={vi.fn()} />,
+    );
+    await waitFor(() => {
+      expect(container.querySelector(".sn-md-mermaid")).toBeInTheDocument();
+    });
+
+    rerender(<MarkdownEditor livePreview={false} value={source} onChange={onChange} onSave={vi.fn()} />);
+    const view = editorView(container);
+    await waitFor(() => {
+      expect(view.state.doc.toString()).toContain("# Title");
+      expect(container.querySelector(".markdown-editor")).not.toHaveClass("is-live");
+    });
+
+    view.dispatch({ changes: { from: view.state.doc.length, insert: "\nadded" } });
+    const edited = `${source}\nadded`;
+    expect(view.state.doc.toString()).toBe(edited);
+
+    rerender(<MarkdownEditor livePreview value={edited} onChange={onChange} onSave={vi.fn()} />);
+    await waitFor(() => {
+      expect(container.querySelector(".markdown-editor")).toHaveClass("is-live");
+      expect(view.state.doc.toString()).toBe(edited);
+      expect(view.contentDOM.textContent).toContain("added");
+    });
+  });
+
+  it("applies loaded document content after the initial empty editor", async () => {
+    const { container, rerender } = render(
+      <MarkdownEditor disabled value="" onChange={vi.fn()} onSave={vi.fn()} syncKey="notes/a.md" />,
+    );
+    expect(editorView(container).state.doc.toString()).toBe("");
+    rerender(
+      <MarkdownEditor value="# loaded" onChange={vi.fn()} onSave={vi.fn()} syncKey="notes/a.md" />,
+    );
+    await waitFor(() => {
+      expect(editorView(container).state.doc.toString()).toBe("# loaded");
+    });
   });
 });

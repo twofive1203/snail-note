@@ -4,9 +4,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { MarkdownEditor } from "../src/features/editor/MarkdownEditor";
 import { useNoteDocument } from "../src/features/editor/use-note-document";
 
-function SaveHarness({ codeMirror = false }: { codeMirror?: boolean }) {
+function SaveHarness({ codeMirror = false, autoSaveMs = 0 }: { codeMirror?: boolean; autoSaveMs?: number }) {
   const [path] = useState("daily/a.md");
-  const note = useNoteDocument("notebook-1", path);
+  const note = useNoteDocument("notebook-1", path, { autoSaveMs });
   return (
     <div>
       {codeMirror ? (
@@ -53,6 +53,37 @@ describe("note save flow", () => {
     const [, request] = fetchMock.mock.calls[1] as [string, RequestInit];
     expect(request.method).toBe("PUT");
     expect(JSON.parse(request.body as string)).toEqual({ path: "daily/a.md", content: "# changed" });
+  });
+
+  it("auto-saves the latest edits after idle", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ path: "daily/a.md", content: "# old", updatedAt: "now" }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ path: "daily/a.md", content: "# latest", updatedAt: "later" }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SaveHarness autoSaveMs={20} />);
+
+    await waitFor(() => expect(screen.getByLabelText("content")).toHaveValue("# old"));
+    fireEvent.change(screen.getByLabelText("content"), { target: { value: "# changed" } });
+    fireEvent.change(screen.getByLabelText("content"), { target: { value: "# latest" } });
+
+    await waitFor(() => expect(screen.getByText("已保存")).toBeInTheDocument());
+    const puts = fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === "PUT");
+    expect(puts).toHaveLength(1);
+    const [, request] = puts[0] as [string, RequestInit];
+    expect(JSON.parse(request.body as string)).toEqual({ path: "daily/a.md", content: "# latest" });
+  });
+
+  it("does not auto-save after unmount", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValue(new Response(JSON.stringify({ path: "daily/a.md", content: "old", updatedAt: "now" }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { unmount } = render(<SaveHarness autoSaveMs={30} />);
+
+    await waitFor(() => expect(screen.getByLabelText("content")).toHaveValue("old"));
+    fireEvent.change(screen.getByLabelText("content"), { target: { value: "unsaved" } });
+    unmount();
+    await new Promise((resolve) => window.setTimeout(resolve, 50));
+    expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "PUT")).toBe(false);
   });
 
   it("keeps edited content when saving fails", async () => {

@@ -84,19 +84,27 @@ export function App() {
     return () => window.removeEventListener("beforeunload", warn);
   }, [note.dirty]);
 
+  const persistOrConfirm = useCallback(async (message: string) => {
+    if (await note.save()) return true;
+    return window.confirm(message);
+  }, [note]);
+
   const selectNotebook = useCallback((notebookId: string) => {
     if (notebookId === activeNotebookId) return;
-    if (note.dirty && !window.confirm("当前文件有未保存的修改，确定放弃并切换笔记本吗？")) return;
-    setActiveNotebookId(notebookId);
-  }, [activeNotebookId, note.dirty]);
+    void persistOrConfirm("保存失败，确定放弃未保存修改并切换笔记本吗？").then((ok) => {
+      if (ok) setActiveNotebookId(notebookId);
+    });
+  }, [activeNotebookId, persistOrConfirm]);
 
   const openFile = useCallback((path: string) => {
     if (path === currentPath) return;
-    if (note.dirty && !window.confirm("当前文件有未保存的修改，确定放弃并切换吗？")) return;
-    setCurrentPath(path);
-    setActiveEntry({ path, type: "file" });
-    setSelectedDirectory(parentPath(path));
-  }, [currentPath, note.dirty]);
+    void persistOrConfirm("保存失败，确定放弃未保存修改并切换吗？").then((ok) => {
+      if (!ok) return;
+      setCurrentPath(path);
+      setActiveEntry({ path, type: "file" });
+      setSelectedDirectory(parentPath(path));
+    });
+  }, [currentPath, persistOrConfirm]);
 
   const runOperation = useCallback(async (operation: () => Promise<void>) => {
     try {
@@ -108,20 +116,22 @@ export function App() {
 
   const createNote = useCallback(() => {
     if (!activeNotebookId) return showToast("请先添加并选择一个笔记本");
-    if (note.dirty && !window.confirm("当前文件有未保存的修改，创建并打开新笔记会放弃这些修改。确定吗？")) return;
-    const rawName = window.prompt("新笔记名称", "未命名.md")?.trim();
-    if (!rawName) return;
-    if (/[\\/]/.test(rawName)) return showToast("文件名不能包含路径分隔符");
-    const name = rawName.toLocaleLowerCase().endsWith(".md") ? rawName : `${rawName}.md`;
-    const path = joinNotebookPath(selectedDirectory, name);
-    void runOperation(async () => {
-      await notebookApi.createNote(activeNotebookId, { path });
-      await refresh();
-      setCurrentPath(path);
-      setActiveEntry({ path, type: "file" });
-      showToast(`已创建 ${path}`);
+    void persistOrConfirm("保存失败，确定放弃未保存修改并创建新笔记吗？").then((ok) => {
+      if (!ok) return;
+      const rawName = window.prompt("新笔记名称", "未命名.md")?.trim();
+      if (!rawName) return;
+      if (/[\\/]/.test(rawName)) return showToast("文件名不能包含路径分隔符");
+      const name = rawName.toLocaleLowerCase().endsWith(".md") ? rawName : `${rawName}.md`;
+      const path = joinNotebookPath(selectedDirectory, name);
+      void runOperation(async () => {
+        await notebookApi.createNote(activeNotebookId, { path });
+        await refresh();
+        setCurrentPath(path);
+        setActiveEntry({ path, type: "file" });
+        showToast(`已创建 ${path}`);
+      });
     });
-  }, [activeNotebookId, note.dirty, refresh, runOperation, selectedDirectory, showToast]);
+  }, [activeNotebookId, persistOrConfirm, refresh, runOperation, selectedDirectory, showToast]);
 
   const createDirectory = useCallback(() => {
     if (!activeNotebookId) return showToast("请先添加并选择一个笔记本");
@@ -140,68 +150,76 @@ export function App() {
 
   const renameEntry = useCallback(() => {
     if (!activeNotebookId || !activeEntry) return showToast("请先选择文件或目录");
-    if (entryContainsPath(activeEntry, currentPath) && note.dirty && !window.confirm("当前笔记尚未保存，继续会放弃修改。确定吗？")) return;
-    const oldName = activeEntry.path.split("/").at(-1) ?? activeEntry.path;
-    const newName = window.prompt("输入新名称", oldName)?.trim();
-    if (!newName || newName === oldName) return;
-    if (/[\\/]/.test(newName)) return showToast("名称不能包含路径分隔符");
-    const newPath = joinNotebookPath(parentPath(activeEntry.path), newName);
-    void runOperation(async () => {
-      await notebookApi.move(activeNotebookId, { path: activeEntry.path, newPath });
-      const nextCurrent = entryContainsPath(activeEntry, currentPath)
-        ? `${newPath}${currentPath!.slice(activeEntry.path.length)}`
-        : currentPath;
-      setCurrentPath(nextCurrent);
-      setActiveEntry({ ...activeEntry, path: newPath });
-      setSelectedDirectory(activeEntry.type === "directory" ? newPath : parentPath(newPath));
-      await refresh();
-      showToast(`已重命名为 ${newName}`);
-    });
-  }, [activeEntry, activeNotebookId, currentPath, note.dirty, refresh, runOperation, showToast]);
+    void (async () => {
+      if (entryContainsPath(activeEntry, currentPath) && !(await persistOrConfirm("保存失败，确定放弃未保存修改并继续重命名吗？"))) return;
+      const oldName = activeEntry.path.split("/").at(-1) ?? activeEntry.path;
+      const newName = window.prompt("输入新名称", oldName)?.trim();
+      if (!newName || newName === oldName) return;
+      if (/[\\/]/.test(newName)) return showToast("名称不能包含路径分隔符");
+      const newPath = joinNotebookPath(parentPath(activeEntry.path), newName);
+      await runOperation(async () => {
+        await notebookApi.move(activeNotebookId, { path: activeEntry.path, newPath });
+        const nextCurrent = entryContainsPath(activeEntry, currentPath)
+          ? `${newPath}${currentPath!.slice(activeEntry.path.length)}`
+          : currentPath;
+        setCurrentPath(nextCurrent);
+        setActiveEntry({ ...activeEntry, path: newPath });
+        setSelectedDirectory(activeEntry.type === "directory" ? newPath : parentPath(newPath));
+        await refresh();
+        showToast(`已重命名为 ${newName}`);
+      });
+    })();
+  }, [activeEntry, activeNotebookId, currentPath, persistOrConfirm, refresh, runOperation, showToast]);
 
   const moveEntry = useCallback(() => {
     if (!activeNotebookId || !activeEntry) return showToast("请先选择文件或目录");
-    if (entryContainsPath(activeEntry, currentPath) && note.dirty && !window.confirm("当前笔记尚未保存，继续会放弃修改。确定吗？")) return;
-    const newPath = window.prompt("输入目标相对路径", activeEntry.path)?.trim().replace(/\\/g, "/");
-    if (!newPath || newPath === activeEntry.path) return;
-    void runOperation(async () => {
-      await notebookApi.move(activeNotebookId, { path: activeEntry.path, newPath });
-      const nextCurrent = entryContainsPath(activeEntry, currentPath)
-        ? `${newPath}${currentPath!.slice(activeEntry.path.length)}`
-        : currentPath;
-      setCurrentPath(nextCurrent);
-      setActiveEntry({ ...activeEntry, path: newPath });
-      setSelectedDirectory(activeEntry.type === "directory" ? newPath : parentPath(newPath));
-      await refresh();
-      showToast(`已移动到 ${newPath}`);
-    });
-  }, [activeEntry, activeNotebookId, currentPath, note.dirty, refresh, runOperation, showToast]);
+    void (async () => {
+      if (entryContainsPath(activeEntry, currentPath) && !(await persistOrConfirm("保存失败，确定放弃未保存修改并继续移动吗？"))) return;
+      const newPath = window.prompt("输入目标相对路径", activeEntry.path)?.trim().replace(/\\/g, "/");
+      if (!newPath || newPath === activeEntry.path) return;
+      await runOperation(async () => {
+        await notebookApi.move(activeNotebookId, { path: activeEntry.path, newPath });
+        const nextCurrent = entryContainsPath(activeEntry, currentPath)
+          ? `${newPath}${currentPath!.slice(activeEntry.path.length)}`
+          : currentPath;
+        setCurrentPath(nextCurrent);
+        setActiveEntry({ ...activeEntry, path: newPath });
+        setSelectedDirectory(activeEntry.type === "directory" ? newPath : parentPath(newPath));
+        await refresh();
+        showToast(`已移动到 ${newPath}`);
+      });
+    })();
+  }, [activeEntry, activeNotebookId, currentPath, persistOrConfirm, refresh, runOperation, showToast]);
 
   const deleteEntry = useCallback(() => {
     if (!activeNotebookId || !activeEntry) return showToast("请先选择文件或目录");
     const affectsCurrent = entryContainsPath(activeEntry, currentPath);
-    if (affectsCurrent && note.dirty && !window.confirm("当前笔记尚未保存，删除会丢失修改。仍要继续吗？")) return;
-    if (!window.confirm(`确定删除“${activeEntry.path}”吗？此操作会直接修改真实文件，且不可恢复。`)) return;
-    void runOperation(async () => {
-      await notebookApi.remove(activeNotebookId, activeEntry.path);
-      setActiveEntry(null);
-      setSelectedDirectory(parentPath(activeEntry.path));
-      await refresh();
-      if (affectsCurrent) setCurrentPath(null);
-      showToast("已删除");
-    });
-  }, [activeEntry, activeNotebookId, currentPath, note.dirty, refresh, runOperation, showToast]);
+    void (async () => {
+      if (affectsCurrent && !(await persistOrConfirm("保存失败，删除会丢失未保存修改。仍要继续吗？"))) return;
+      if (!window.confirm(`确定删除“${activeEntry.path}”吗？此操作会直接修改真实文件，且不可恢复。`)) return;
+      await runOperation(async () => {
+        await notebookApi.remove(activeNotebookId, activeEntry.path);
+        setActiveEntry(null);
+        setSelectedDirectory(parentPath(activeEntry.path));
+        await refresh();
+        if (affectsCurrent) setCurrentPath(null);
+        showToast("已删除");
+      });
+    })();
+  }, [activeEntry, activeNotebookId, currentPath, persistOrConfirm, refresh, runOperation, showToast]);
 
   const removeNotebook = useCallback((notebookId: string) => {
     const notebook = notebookList.notebooks.find(({ id }) => id === notebookId);
     if (!notebook) return;
-    if (notebookId === activeNotebookId && note.dirty && !window.confirm("当前笔记尚未保存，移除笔记本会放弃修改。仍要继续吗？")) return;
-    if (!window.confirm(`从列表移除“${notebook.name}”吗？真实目录和文件不会被删除。`)) return;
-    void runOperation(async () => {
-      await notebookList.remove(notebookId);
-      showToast(`已移除 ${notebook.name}`);
-    });
-  }, [activeNotebookId, note.dirty, notebookList, runOperation, showToast]);
+    void (async () => {
+      if (notebookId === activeNotebookId && !(await persistOrConfirm("保存失败，确定放弃未保存修改并移除笔记本吗？"))) return;
+      if (!window.confirm(`从列表移除“${notebook.name}”吗？真实目录和文件不会被删除。`)) return;
+      await runOperation(async () => {
+        await notebookList.remove(notebookId);
+        showToast(`已移除 ${notebook.name}`);
+      });
+    })();
+  }, [activeNotebookId, notebookList, persistOrConfirm, runOperation, showToast]);
 
   useEffect(() => {
     const shortcuts = (event: KeyboardEvent) => {
@@ -217,7 +235,7 @@ export function App() {
       }
       if (modifier && event.key.toLocaleLowerCase() === "s") {
         event.preventDefault();
-        void note.save().then((saved) => saved && showToast(note.dirty ? "已保存" : "没有需要保存的修改"));
+        void note.save().then((saved) => saved && showToast("已保存"));
       }
       if (event.key === "Escape") setSearchOpen(false);
     };
@@ -315,20 +333,20 @@ export function App() {
           <div className="editor-toolbar">
             <strong className="document-title">{crumbs.at(-1) ?? (activeNotebook ? "选择或新建一篇笔记" : "添加一个笔记本开始使用")}</strong>
             {note.error ? <span className="save-state error" title={note.error}>{note.error}</span> : (
-              <span className={`save-state${note.dirty ? " dirty" : ""}`}><i />{note.saving ? "保存中…" : note.dirty ? "未保存" : "已保存"}</span>
+              <span className={`save-state${note.dirty ? " dirty" : ""}`} title="停顿后自动保存"><i />{note.saving ? "保存中…" : note.dirty ? "未保存" : "已保存"}</span>
             )}
-            <button className={viewMode === "edit" && livePreview ? "active" : ""} onClick={() => { setLivePreview(true); setViewMode("edit"); }} title="实时预览">✦ <span>实时</span></button>
-            <button className={viewMode === "edit" && !livePreview ? "active" : ""} onClick={() => { setLivePreview(false); setViewMode("edit"); }} title="Markdown 源码">{'</>'} <span>源码</span></button>
-            <button className={viewMode === "split" ? "active" : ""} onClick={() => setViewMode("split")}>◫ <span>分屏</span></button>
-            <button className={viewMode === "preview" ? "active" : ""} onClick={() => setViewMode("preview")}>◉ <span>预览</span></button>
-            <button className="save-button" disabled={!currentPath || note.saving} onClick={() => void note.save().then((saved) => saved && showToast(note.dirty ? "已保存" : "没有需要保存的修改"))}>保存</button>
+            <button className={viewMode === "edit" && livePreview ? "active" : ""} onClick={() => { void note.save(); setLivePreview(true); setViewMode("edit"); }} title="实时预览">✦ <span>实时</span></button>
+            <button className={viewMode === "edit" && !livePreview ? "active" : ""} onClick={() => { void note.save(); setLivePreview(false); setViewMode("edit"); }} title="Markdown 源码">{'</>'} <span>源码</span></button>
+            <button className={viewMode === "split" ? "active" : ""} onClick={() => { void note.save(); setViewMode("split"); }}>◫ <span>分屏</span></button>
+            <button className={viewMode === "preview" ? "active" : ""} onClick={() => { void note.save(); setViewMode("preview"); }}>◉ <span>预览</span></button>
+            <button className="save-button" disabled={!currentPath || note.saving} onClick={() => void note.save().then((saved) => saved && showToast("已保存"))}>保存</button>
           </div>
           <div className={`editor-body mode-${viewMode}`}>
             {!currentPath ? <div className="welcome"><span>✦</span><h1>Snail Note</h1><p>{activeNotebook ? "从左侧选择一篇 Markdown 笔记，或创建新笔记。" : "先添加服务端目录作为笔记本，无需再配置启动根目录。"}</p><button onClick={activeNotebook ? createNote : () => setDirectoryPickerOpen(true)}>{activeNotebook ? "新建笔记" : "添加笔记本"}</button></div> : (
               <>
                 <div className="editor-pane">
                   {note.loading ? <div className="pane-loading">正在加载…</div> : null}
-                  <MarkdownEditor value={note.content} disabled={note.loading} livePreview={livePreview} onChange={note.setContent} onSave={() => void note.save().then((saved) => saved && showToast("已保存"))} />
+                  <MarkdownEditor value={note.content} disabled={note.loading} livePreview={livePreview} syncKey={currentPath ?? undefined} onChange={note.setContent} onSave={() => void note.save().then((saved) => saved && showToast("已保存"))} />
                 </div>
                 <div className="preview-pane"><MarkdownPreview content={note.content} /></div>
               </>
