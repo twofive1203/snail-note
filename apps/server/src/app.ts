@@ -2,15 +2,14 @@ import { existsSync } from "node:fs";
 import cors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
 import Fastify, { type FastifyInstance } from "fastify";
-import type { NotebookConfig } from "./config/notebook-config.js";
+import type { AppConfig } from "./config/notebook-config.js";
 import { NotebookError } from "./notebook/notebook-errors.js";
+import { NotebookRegistry } from "./notebook/notebook-registry.js";
 import { registerNotebookRoutes } from "./notebook/notebook-routes.js";
-import { NotebookService } from "./notebook/notebook-service.js";
 import { registerSearchRoutes } from "./search/search-routes.js";
-import { SearchService } from "./search/search-service.js";
 
 export async function buildApp(
-  config: NotebookConfig,
+  config: AppConfig,
   options: { webRoot?: string } = {},
 ): Promise<FastifyInstance> {
   const app = Fastify({ logger: process.env.NODE_ENV !== "test" });
@@ -21,12 +20,11 @@ export async function buildApp(
     await app.register(cors, { origin: /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/ });
   }
 
-  const notebook = new NotebookService(config.root, config.name);
-  const search = new SearchService(notebook);
+  const registry = await NotebookRegistry.open(config.registryFile, config.initialNotebook);
 
-  app.get("/api/health", async () => ({ status: "ok", notebook: config.name }));
-  await registerNotebookRoutes(app, notebook);
-  await registerSearchRoutes(app, search);
+  app.get("/api/health", async () => ({ status: "ok", notebooks: registry.list().length }));
+  await registerNotebookRoutes(app, registry);
+  await registerSearchRoutes(app, registry);
 
   if (options.webRoot && existsSync(options.webRoot)) {
     await app.register(fastifyStatic, { root: options.webRoot });

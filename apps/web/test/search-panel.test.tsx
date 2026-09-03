@@ -11,7 +11,7 @@ describe("SearchPanel", () => {
       matches: [{ path: "daily/a.md", title: "A note", snippet: "a needle here", line: 3 }],
     }), { status: 200 })));
     const onOpenFile = vi.fn();
-    render(<SearchPanel open onClose={vi.fn()} onOpenFile={onOpenFile} />);
+    render(<SearchPanel open notebookId="notebook-1" onClose={vi.fn()} onOpenFile={onOpenFile} />);
 
     fireEvent.change(screen.getByPlaceholderText("搜索笔记内容…"), { target: { value: "needle" } });
     await waitFor(() => expect(screen.getByText("A note")).toBeInTheDocument(), { timeout: 1000 });

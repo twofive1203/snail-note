@@ -1,14 +1,19 @@
 import { useState } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { MarkdownEditor } from "../src/features/editor/MarkdownEditor";
 import { useNoteDocument } from "../src/features/editor/use-note-document";
 
-function SaveHarness() {
+function SaveHarness({ codeMirror = false }: { codeMirror?: boolean }) {
   const [path] = useState("daily/a.md");
-  const note = useNoteDocument(path);
+  const note = useNoteDocument("notebook-1", path);
   return (
     <div>
-      <textarea aria-label="content" value={note.content} onChange={(event) => note.setContent(event.target.value)} />
+      {codeMirror ? (
+        <MarkdownEditor value={note.content} onChange={note.setContent} onSave={() => void note.save()} />
+      ) : (
+        <textarea aria-label="content" value={note.content} onChange={(event) => note.setContent(event.target.value)} />
+      )}
       <span>{note.dirty ? "未保存" : "已保存"}</span>
       <button onClick={() => void note.save()}>保存</button>
       {note.error ? <div>{note.error}</div> : null}
@@ -19,6 +24,19 @@ function SaveHarness() {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("note save flow", () => {
+  it("does not mark an untouched CRLF document as dirty after CodeMirror normalizes it", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      path: "daily/a.md",
+      content: "first\r\nsecond",
+      updatedAt: "now",
+    }), { status: 200 })));
+    const { container } = render(<SaveHarness codeMirror />);
+
+    await waitFor(() => expect(container.querySelector(".cm-content")).toHaveTextContent("firstsecond"));
+    expect(screen.getByText("已保存")).toBeInTheDocument();
+    expect(screen.queryByText("未保存")).not.toBeInTheDocument();
+  });
+
   it("loads original Markdown, saves the full text and clears dirty state", async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ path: "daily/a.md", content: "# old", updatedAt: "now" }), { status: 200 }))

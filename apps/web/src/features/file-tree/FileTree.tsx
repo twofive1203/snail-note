@@ -89,33 +89,9 @@ function TreeBranch({
 }
 
 export function FileTree(props: FileTreeProps) {
-  const [opened, setOpened] = useState<Set<string>>(() => {
-    const initial = new Set<string>();
-    const addDirectories = (nodes: NotebookNode[]) => nodes.forEach((node) => {
-      if (node.type === "directory") {
-        initial.add(node.path);
-        addDirectories(node.children ?? []);
-      }
-    });
-    addDirectories(props.nodes);
-    return initial;
-  });
+  const [opened, setOpened] = useState<Set<string>>(() => new Set());
 
   useEffect(() => setOpened(new Set()), [props.collapseSignal]);
-
-  useEffect(() => {
-    setOpened((current) => {
-      const next = new Set(current);
-      const addDirectories = (nodes: NotebookNode[]) => nodes.forEach((node) => {
-        if (node.type === "directory") {
-          next.add(node.path);
-          addDirectories(node.children ?? []);
-        }
-      });
-      addDirectories(props.nodes);
-      return next;
-    });
-  }, [props.nodes]);
 
   const query = props.filter.trim().toLocaleLowerCase();
   const visibleNodes = useMemo(() => filterNodes(props.nodes, query), [props.nodes, query]);

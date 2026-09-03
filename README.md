@@ -6,7 +6,8 @@
 
 ## MVP 能力
 
-- 浏览已有 Markdown 文件夹和多级目录
+- 在页面中浏览服务端目录并添加多个笔记本，无需启动前配置根目录
+- 在笔记本列表中切换不同 Markdown 文件夹和多级目录
 - 创建、读取、编辑、保存、重命名、移动、删除 `.md` 文件
 - 创建、重命名、移动和删除空目录
 - CodeMirror 6 Markdown 原文编辑，支持 `Ctrl/Cmd + S` 保存
@@ -31,20 +32,21 @@
 pnpm install
 ```
 
-复制环境变量示例并设置笔记目录：
+直接启动即可，不需要设置笔记根目录：
 
 ```powershell
 Copy-Item .env.example .env
-# 编辑 .env，将 NOTEBOOK_ROOT 改为真实存在的目录
 pnpm dev
 ```
+
+打开页面后点击左侧“笔记本”旁的 `＋`，浏览并选择服务端机器上的目录。选择结果保存在 `.snail-note/notebooks.json`，重启后会自动恢复。可通过 `SNAIL_NOTE_DATA_DIR` 修改配置存储目录。
 
 默认地址：
 
 - Web: <http://localhost:5173>
 - API: <http://localhost:8787/api/health>
 
-如果不设置 `NOTEBOOK_ROOT`，服务会在当前工作目录创建并使用安全的 `snail-notes/` 默认目录。已有文件夹无需迁移，详细说明见 [接入已有 Markdown 文件夹](docs/usage/import-existing-folder.md)。
+已有文件夹无需迁移或转换，详细说明见 [接入已有 Markdown 文件夹](docs/usage/import-existing-folder.md)。为兼容旧配置，首次升级且尚无笔记本配置文件时，已有的 `NOTEBOOK_ROOT` 仍会自动注册为第一个笔记本。
 
 ## 构建和运行
 
@@ -59,11 +61,10 @@ pnpm start
 
 ## Docker Compose
 
-1. 创建 `.env`，配置宿主机笔记目录：
+1. 创建 `.env`，配置包含各个笔记本的宿主机父目录：
 
 ```dotenv
 NOTEBOOK_HOST_PATH=D:/Notes
-NOTEBOOK_NAME=我的笔记本
 ```
 
 2. 构建并启动：
@@ -74,18 +75,21 @@ docker compose up -d --build
 
 3. 打开 <http://localhost:8787>。
 
-挂载关系是 `${NOTEBOOK_HOST_PATH} -> /notes`，容器内 `NOTEBOOK_ROOT=/notes`。在 Linux/macOS 上可使用 `/home/me/notes` 之类的绝对路径。
+挂载关系是 `${NOTEBOOK_HOST_PATH} -> /notes`。打开页面后可从 `/notes` 下分别选择多个子目录作为笔记本。容器只能浏览已挂载到容器内的目录；如需选择其他宿主机目录，需要先在 `docker-compose.yml` 中增加对应挂载。笔记本列表存储在 Docker 数据卷中。
 
 ## API 概览
 
 | 方法 | 路径 | 用途 |
 | --- | --- | --- |
 | `GET` | `/api/health` | 健康检查 |
-| `GET` | `/api/notebook/tree` | 文件树 |
-| `GET/PUT/POST` | `/api/notebook/file` | 读取、保存、创建笔记 |
-| `POST` | `/api/notebook/directory` | 创建目录 |
-| `PATCH/DELETE` | `/api/notebook/entry` | 移动/重命名、删除 |
-| `GET` | `/api/search?q=...` | 内容搜索 |
+| `GET/POST` | `/api/notebooks` | 查询、添加笔记本 |
+| `DELETE` | `/api/notebooks/:notebookId` | 从列表移除笔记本（不删除文件） |
+| `GET` | `/api/directories` | 浏览服务端目录 |
+| `GET` | `/api/notebooks/:notebookId/tree` | 指定笔记本的文件树 |
+| `GET/PUT/POST` | `/api/notebooks/:notebookId/file` | 读取、保存、创建笔记 |
+| `POST` | `/api/notebooks/:notebookId/directory` | 创建目录 |
+| `PATCH/DELETE` | `/api/notebooks/:notebookId/entry` | 移动/重命名、删除 |
+| `GET` | `/api/notebooks/:notebookId/search?q=...` | 在指定笔记本内搜索 |
 
 ## MVP 边界
 

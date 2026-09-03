@@ -16,7 +16,7 @@ const nodes = [{
 }];
 
 describe("FileTree", () => {
-  it("renders hierarchy and opens a selected Markdown file", () => {
+  it("shows only the first level until the user expands a directory", () => {
     const onOpenFile = vi.fn();
     render(
       <FileTree
@@ -30,6 +30,9 @@ describe("FileTree", () => {
         onActivate={vi.fn()}
       />,
     );
+
+    expect(screen.queryByRole("button", { name: /会议记录\.md/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /daily/ }));
     fireEvent.click(screen.getByRole("button", { name: /会议记录\.md/ }));
     expect(onOpenFile).toHaveBeenCalledWith("daily/会议记录.md");
   });

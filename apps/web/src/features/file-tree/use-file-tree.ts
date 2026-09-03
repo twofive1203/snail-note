@@ -1,30 +1,38 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { NotebookNode } from "@snail-note/shared";
 import { notebookApi } from "./file-tree-api";
 
-export function useFileTree() {
+export function useFileTree(notebookId: string | null) {
   const [nodes, setNodes] = useState<NotebookNode[]>([]);
-  const [notebookName, setNotebookName] = useState("笔记本");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const loadSequence = useRef(0);
 
   const refresh = useCallback(async () => {
+    const sequence = ++loadSequence.current;
+    if (!notebookId) {
+      setNodes([]);
+      setLoading(false);
+      setError("");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
-      const tree = await notebookApi.tree();
-      setNodes(tree.root);
-      setNotebookName(tree.name);
+      const tree = await notebookApi.tree(notebookId);
+      if (sequence === loadSequence.current) setNodes(tree.root);
     } catch (cause) {
+      if (sequence !== loadSequence.current) return;
+      setNodes([]);
       setError(cause instanceof Error ? cause.message : "文件树加载失败");
     } finally {
-      setLoading(false);
+      if (sequence === loadSequence.current) setLoading(false);
     }
-  }, []);
+  }, [notebookId]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
-  return { nodes, notebookName, loading, error, refresh };
+  return { nodes, loading, error, refresh };
 }

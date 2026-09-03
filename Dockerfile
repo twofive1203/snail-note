@@ -13,12 +13,12 @@ RUN pnpm build
 FROM node:24-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production \
-    NOTEBOOK_ROOT=/notes \
+    SNAIL_NOTE_DATA_DIR=/data \
     WEB_DIST=/app/apps/web/dist \
     HOST=0.0.0.0 \
     PORT=8787
 COPY --from=build /app /app
-RUN mkdir -p /notes
+RUN mkdir -p /notes /data
 EXPOSE 8787
-VOLUME ["/notes"]
+VOLUME ["/notes", "/data"]
 CMD ["node", "apps/server/dist/main.js"]

@@ -12,8 +12,9 @@ function highlightedSnippet(snippet: string, query: string) {
   );
 }
 
-export function SearchPanel({ open, onClose, onOpenFile }: {
+export function SearchPanel({ open, notebookId, onClose, onOpenFile }: {
   open: boolean;
+  notebookId: string | null;
   onClose: () => void;
   onOpenFile: (path: string) => void;
 }) {
@@ -28,7 +29,7 @@ export function SearchPanel({ open, onClose, onOpenFile }: {
   }, [open]);
 
   useEffect(() => {
-    if (!open || !query.trim()) {
+    if (!open || !notebookId || !query.trim()) {
       setMatches([]);
       setError("");
       return;
@@ -37,7 +38,7 @@ export function SearchPanel({ open, onClose, onOpenFile }: {
     const timer = window.setTimeout(() => {
       setLoading(true);
       setError("");
-      void searchNotes(query)
+      void searchNotes(notebookId, query)
         .then((response) => current && setMatches(response.matches))
         .catch((cause) => current && setError(cause instanceof Error ? cause.message : "搜索失败"))
         .finally(() => current && setLoading(false));
@@ -46,7 +47,7 @@ export function SearchPanel({ open, onClose, onOpenFile }: {
       current = false;
       window.clearTimeout(timer);
     };
-  }, [open, query]);
+  }, [notebookId, open, query]);
 
   if (!open) return null;
   return (

@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { editorApi } from "./editor-api";
 
-export function useNoteDocument(path: string | null) {
+function normalizeEditorContent(content: string): string {
+  return content.replace(/\r\n?/g, "\n");
+}
+
+export function useNoteDocument(notebookId: string | null, path: string | null) {
   const [content, setContent] = useState("");
   const [persistedContent, setPersistedContent] = useState("");
   const [loading, setLoading] = useState(false);
@@ -11,20 +15,22 @@ export function useNoteDocument(path: string | null) {
 
   useEffect(() => {
     const sequence = ++loadSequence.current;
-    if (!path) {
+    if (!notebookId || !path) {
       setContent("");
       setPersistedContent("");
       setError("");
+      setLoading(false);
       return;
     }
 
     setLoading(true);
     setError("");
-    void editorApi.read(path)
+    void editorApi.read(notebookId, path)
       .then((document) => {
         if (sequence !== loadSequence.current) return;
-        setContent(document.content);
-        setPersistedContent(document.content);
+        const normalizedContent = normalizeEditorContent(document.content);
+        setContent(normalizedContent);
+        setPersistedContent(normalizedContent);
       })
       .catch((cause) => {
         if (sequence !== loadSequence.current) return;
@@ -33,15 +39,15 @@ export function useNoteDocument(path: string | null) {
       .finally(() => {
         if (sequence === loadSequence.current) setLoading(false);
       });
-  }, [path]);
+  }, [notebookId, path]);
 
   const save = useCallback(async (): Promise<boolean> => {
-    if (!path || content === persistedContent) return true;
+    if (!notebookId || !path || content === persistedContent) return true;
     setSaving(true);
     setError("");
     try {
-      const document = await editorApi.save({ path, content });
-      setPersistedContent(document.content);
+      const document = await editorApi.save(notebookId, { path, content });
+      setPersistedContent(normalizeEditorContent(document.content));
       return true;
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "保存失败，编辑内容仍保留在当前页面");
@@ -49,7 +55,7 @@ export function useNoteDocument(path: string | null) {
     } finally {
       setSaving(false);
     }
-  }, [content, path, persistedContent]);
+  }, [content, notebookId, path, persistedContent]);
 
   return {
     content,

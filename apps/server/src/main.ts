@@ -2,12 +2,12 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { config as loadEnvFile } from "dotenv";
 import { buildApp } from "./app.js";
-import { loadNotebookConfig } from "./config/notebook-config.js";
+import { loadAppConfig } from "./config/notebook-config.js";
 
 export async function startServer(): Promise<void> {
   const repositoryRoot = fileURLToPath(new URL("../../../", import.meta.url));
   loadEnvFile({ path: path.join(repositoryRoot, ".env") });
-  const config = loadNotebookConfig(process.env, path.join(repositoryRoot, "snail-notes"));
+  const config = loadAppConfig(process.env, path.join(repositoryRoot, ".snail-note"));
   const defaultWebRoot = fileURLToPath(new URL("../../web/dist", import.meta.url));
   const webRoot = path.resolve(process.env.WEB_DIST || defaultWebRoot);
   const app = await buildApp(config, { webRoot });

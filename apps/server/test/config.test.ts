@@ -2,12 +2,18 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { loadNotebookConfig } from "../src/config/notebook-config.js";
+import { loadAppConfig, loadNotebookConfig } from "../src/config/notebook-config.js";
 
 const paths: string[] = [];
 afterEach(async () => Promise.all(paths.splice(0).map((target) => rm(target, { recursive: true, force: true }))));
 
 describe("loadNotebookConfig", () => {
+  it("starts without requiring a notebook root", async () => {
+    const dataDirectory = path.join(await mkdtemp(path.join(os.tmpdir(), "snail-note-data-")), "config");
+    paths.push(path.dirname(dataDirectory));
+    expect(loadAppConfig({}, dataDirectory)).toEqual({ registryFile: path.join(dataDirectory, "notebooks.json") });
+  });
+
   it("loads an existing directory", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "snail-note-config-"));
     paths.push(root);

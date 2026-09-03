@@ -8,9 +8,35 @@ export interface NotebookNode {
   children?: NotebookNode[];
 }
 
-export interface NotebookTreeResponse {
+export interface NotebookSummary {
+  id: string;
   name: string;
+  root: string;
+}
+
+export interface NotebookListResponse {
+  notebooks: NotebookSummary[];
+}
+
+export interface CreateNotebookRequest {
+  root: string;
+  name?: string;
+}
+
+export interface NotebookTreeResponse {
+  notebook: NotebookSummary;
   root: NotebookNode[];
+}
+
+export interface ServerDirectory {
+  name: string;
+  path: string;
+}
+
+export interface DirectoryBrowserResponse {
+  path: string | null;
+  parent: string | null;
+  directories: ServerDirectory[];
 }
 
 export interface NoteDocument {

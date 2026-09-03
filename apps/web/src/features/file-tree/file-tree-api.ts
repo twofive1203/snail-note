@@ -1,8 +1,12 @@
 import type {
   CreateDirectoryRequest,
   CreateNoteRequest,
+  CreateNotebookRequest,
+  DirectoryBrowserResponse,
   MoveEntryRequest,
   NoteDocument,
+  NotebookListResponse,
+  NotebookSummary,
   NotebookTreeResponse,
   SaveNoteRequest,
 } from "@snail-note/shared";
@@ -30,12 +34,20 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return response.status === 204 ? (undefined as T) : ((await response.json()) as T);
 }
 
+function notebookUrl(notebookId: string, suffix = ""): string {
+  return `/api/notebooks/${encodeURIComponent(notebookId)}${suffix}`;
+}
+
 export const notebookApi = {
-  tree: () => request<NotebookTreeResponse>("/api/notebook/tree"),
-  read: (path: string) => request<NoteDocument>(`/api/notebook/file?path=${encodeURIComponent(path)}`),
-  save: (body: SaveNoteRequest) => request<NoteDocument>("/api/notebook/file", { method: "PUT", body: JSON.stringify(body) }),
-  createNote: (body: CreateNoteRequest) => request<NoteDocument>("/api/notebook/file", { method: "POST", body: JSON.stringify(body) }),
-  createDirectory: (body: CreateDirectoryRequest) => request<{ path: string }>("/api/notebook/directory", { method: "POST", body: JSON.stringify(body) }),
-  move: (body: MoveEntryRequest) => request<{ path: string }>("/api/notebook/entry", { method: "PATCH", body: JSON.stringify(body) }),
-  remove: (path: string) => request<void>(`/api/notebook/entry?path=${encodeURIComponent(path)}`, { method: "DELETE" }),
+  list: () => request<NotebookListResponse>("/api/notebooks"),
+  add: (body: CreateNotebookRequest) => request<NotebookSummary>("/api/notebooks", { method: "POST", body: JSON.stringify(body) }),
+  removeNotebook: (notebookId: string) => request<void>(notebookUrl(notebookId), { method: "DELETE" }),
+  browseDirectories: (path?: string) => request<DirectoryBrowserResponse>(`/api/directories${path ? `?path=${encodeURIComponent(path)}` : ""}`),
+  tree: (notebookId: string) => request<NotebookTreeResponse>(notebookUrl(notebookId, "/tree")),
+  read: (notebookId: string, path: string) => request<NoteDocument>(`${notebookUrl(notebookId, "/file")}?path=${encodeURIComponent(path)}`),
+  save: (notebookId: string, body: SaveNoteRequest) => request<NoteDocument>(notebookUrl(notebookId, "/file"), { method: "PUT", body: JSON.stringify(body) }),
+  createNote: (notebookId: string, body: CreateNoteRequest) => request<NoteDocument>(notebookUrl(notebookId, "/file"), { method: "POST", body: JSON.stringify(body) }),
+  createDirectory: (notebookId: string, body: CreateDirectoryRequest) => request<{ path: string }>(notebookUrl(notebookId, "/directory"), { method: "POST", body: JSON.stringify(body) }),
+  move: (notebookId: string, body: MoveEntryRequest) => request<{ path: string }>(notebookUrl(notebookId, "/entry"), { method: "PATCH", body: JSON.stringify(body) }),
+  remove: (notebookId: string, path: string) => request<void>(`${notebookUrl(notebookId, "/entry")}?path=${encodeURIComponent(path)}`, { method: "DELETE" }),
 };
