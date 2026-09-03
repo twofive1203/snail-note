@@ -1,0 +1,18 @@
+{
+  "name": "snail-note",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.12.4",
+  "scripts": {
+    "dev": "pnpm --filter @snail-note/shared build && pnpm --parallel --filter @snail-note/server --filter @snail-note/web dev",
+    "build": "pnpm --filter @snail-note/shared build && pnpm --filter @snail-note/server build && pnpm --filter @snail-note/web build",
+    "start": "pnpm --filter @snail-note/server start",
+    "typecheck": "pnpm --filter @snail-note/shared build && pnpm --filter @snail-note/server typecheck && pnpm --filter @snail-note/web typecheck",
+    "test": "pnpm --filter @snail-note/shared build && pnpm --filter @snail-note/server test && pnpm --filter @snail-note/web test"
+  },
+  "devDependencies": {
+    "cross-env": "^10.0.0",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

@@ -1,0 +1,12 @@
+services:
+  snail-note:
+    build: .
+    container_name: snail-note
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    environment:
+      NOTEBOOK_ROOT: /notes
+      NOTEBOOK_NAME: ${NOTEBOOK_NAME:-我的笔记本}
+    volumes:
+      - "${NOTEBOOK_HOST_PATH:-./snail-notes}:/notes"
