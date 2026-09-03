@@ -11,7 +11,7 @@ export async function startServer(): Promise<void> {
   const defaultWebRoot = fileURLToPath(new URL("../../web/dist", import.meta.url));
   const webRoot = path.resolve(process.env.WEB_DIST || defaultWebRoot);
   const app = await buildApp(config, { webRoot });
-  const port = Number(process.env.PORT || 8787);
+  const port = Number(process.env.PORT || 61666);
   const host = process.env.HOST || "0.0.0.0";
   await app.listen({ port, host });
 }

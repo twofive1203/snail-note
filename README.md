@@ -46,7 +46,7 @@ pnpm dev
 默认地址：
 
 - Web: <http://localhost:5173>
-- API: <http://localhost:8787/api/health>
+- API: <http://localhost:61666/api/health>
 
 已有文件夹无需迁移或转换，详细说明见 [接入已有 Markdown 文件夹](docs/usage/import-existing-folder.md)。为兼容旧配置，首次升级且尚无笔记本配置文件时，已有的 `NOTEBOOK_ROOT` 仍会自动注册为第一个笔记本。
 
@@ -59,7 +59,7 @@ pnpm build
 pnpm start
 ```
 
-生产启动时，Fastify 会同时提供 `apps/web/dist` 静态文件和 `/api` 接口，默认访问 <http://localhost:8787>。
+生产启动时，Fastify 会同时提供 `apps/web/dist` 静态文件和 `/api` 接口，默认访问 <http://localhost:61666>。
 
 ## Docker Compose
 
@@ -75,7 +75,7 @@ NOTEBOOK_HOST_PATH=D:/Notes
 docker compose up -d --build
 ```
 
-3. 打开 <http://localhost:8787>。
+3. 打开 <http://localhost:61666>。
 
 挂载关系是 `${NOTEBOOK_HOST_PATH} -> /notes`。打开页面后可从 `/notes` 下分别选择多个子目录作为笔记本。容器只能浏览已挂载到容器内的目录；如需选择其他宿主机目录，需要先在 `docker-compose.yml` 中增加对应挂载。笔记本列表存储在 Docker 数据卷中。
 
