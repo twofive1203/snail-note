@@ -88,21 +88,77 @@ describe("MarkdownEditor", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it("reveals fenced code marks when the cursor is inside the block", async () => {
+  it("keeps fence marks hidden and shows a language switcher when the cursor is inside the block", async () => {
     const { container } = render(
       <MarkdownEditor value={"hello\n\n```\ngood\n```\n"} onChange={vi.fn()} onSave={vi.fn()} />,
     );
     await waitFor(() => {
       expect(container.querySelector(".sn-md-codeblock")).toBeInTheDocument();
+      expect(container.querySelector(".sn-md-code-lang")).toHaveTextContent("纯文本");
       expect(container.querySelector(".cm-content")?.textContent ?? "").not.toContain("```");
     });
     const view = editorView(container);
     const body = view.state.doc.toString().indexOf("good");
     view.dispatch({ selection: { anchor: body } });
     await waitFor(() => {
-      expect(view.contentDOM.textContent).toContain("```");
+      expect(view.contentDOM.textContent).not.toContain("```");
       expect(view.contentDOM.textContent).toContain("good");
+      expect(container.querySelector(".sn-md-codeblock")).toHaveClass("is-active");
+      expect(container.querySelector(".sn-md-code-lang")).toBeInTheDocument();
+    });
+  });
+
+  it("keeps a one-line code block cursor on the code line instead of the closing fence", async () => {
+    const { container } = render(
+      <MarkdownEditor value={"```\nnice\n```\n"} onChange={vi.fn()} onSave={vi.fn()} />,
+    );
+    await waitFor(() => {
       expect(container.querySelector(".sn-md-codeblock")).toBeInTheDocument();
+    });
+    const view = editorView(container);
+    fireEvent.mouseDown(container.querySelector(".sn-md-codeblock")!);
+    expect(view.state.doc.lineAt(view.state.selection.main.head).text).toBe("nice");
+    expect(view.contentDOM.textContent).not.toContain("```");
+    expect(container.querySelector(".sn-md-codeblock")?.textContent).toContain("nice");
+  });
+
+  it("does not pull the cursor into a neighboring code block when clicking the gap", async () => {
+    const doc = "```\npublic void\n```\n\n\n\n```js\nconst value = 1;\n```\n";
+    const { container } = render(<MarkdownEditor value={doc} onChange={vi.fn()} onSave={vi.fn()} />);
+    await waitFor(() => {
+      expect(container.querySelectorAll(".sn-md-codeblock")).toHaveLength(2);
+    });
+    const view = editorView(container);
+    const blank = view.state.doc.line(5);
+    expect(blank.text).toBe("");
+    view.dispatch({ selection: { anchor: blank.from }, userEvent: "select.pointer" });
+    expect(view.state.doc.lineAt(view.state.selection.main.head).text).toBe("");
+    const openLower = view.state.doc.toString().indexOf("```js");
+    view.dispatch({ selection: { anchor: openLower }, userEvent: "select.pointer" });
+    expect(view.state.doc.lineAt(view.state.selection.main.head).text).toBe("");
+    expect(view.state.doc.lineAt(view.state.selection.main.head).text).not.toBe("const value = 1;");
+    expect(view.state.doc.lineAt(view.state.selection.main.head).text).not.toBe("public void");
+  });
+
+  it("changes the fenced language from the corner switcher", async () => {
+    const onChange = vi.fn();
+    const { container } = render(
+      <MarkdownEditor value={"```\nconst value = 1;\n```\n"} onChange={onChange} onSave={vi.fn()} />,
+    );
+    await waitFor(() => {
+      expect(container.querySelector(".sn-md-code-lang")).toHaveTextContent("纯文本");
+    });
+    fireEvent.mouseDown(container.querySelector(".sn-md-code-lang")!);
+    const option = [...document.body.querySelectorAll(".sn-md-code-lang-options button")].find(
+      (el) => el.textContent === "TypeScript",
+    );
+    expect(option).toBeTruthy();
+    fireEvent.click(option!);
+    const view = editorView(container);
+    expect(view.state.doc.toString().startsWith("```typescript\n")).toBe(true);
+    expect(onChange).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(container.querySelector(".sn-md-code-lang")).toHaveTextContent("TypeScript");
     });
   });
 
@@ -113,6 +169,17 @@ describe("MarkdownEditor", () => {
     expect(fenceCodeLanguage("bash")?.name).toBe("Shell");
     expect(fenceCodeLanguage("curl")?.name).toBe("Shell");
     expect(fenceCodeLanguage("mermaid")).toBeNull();
+  });
+
+  it("highlights javascript fences in live preview", async () => {
+    await fenceCodeLanguage("js")?.load();
+    const { container } = render(
+      <MarkdownEditor value={"```js\nconst value = 1;\n```\n"} onChange={vi.fn()} onSave={vi.fn()} />,
+    );
+    await waitFor(() => {
+      const keyword = container.querySelector(".sn-md-codeblock .sn-md-tok-keyword");
+      expect(keyword).toHaveTextContent("const");
+    });
   });
 
   it("parses javascript fences with a nested language", async () => {
@@ -209,6 +276,22 @@ describe("MarkdownEditor", () => {
     view.dispatch({ selection: { anchor: 3 } });
     expect(completeFencedCodeOnEnter(view)).toBe(false);
     expect(view.state.doc.toString()).toBe(doc);
+  });
+
+  it("hides auto-closed fence marks and does not keep extra space after the closer", async () => {
+    const { container } = render(
+      <MarkdownEditor value="```" onChange={vi.fn()} onSave={vi.fn()} />,
+    );
+    const view = editorView(container);
+    view.dispatch({ selection: { anchor: view.state.doc.length } });
+    expect(completeFencedCodeOnEnter(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe("```\n\n```");
+    expect(view.state.doc.line(view.state.doc.lines).text).toBe("```");
+    await waitFor(() => {
+      const block = container.querySelector(".sn-md-codeblock");
+      expect(block).toBeInTheDocument();
+      expect(view.contentDOM.textContent).not.toContain("```");
+    });
   });
 
   it("applies loaded document content after the initial empty editor", async () => {

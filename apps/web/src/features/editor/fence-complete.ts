@@ -1,22 +1,6 @@
 import { EditorSelection, Prec, type EditorState } from "@codemirror/state";
 import { type Command, type EditorView, keymap } from "@codemirror/view";
-
-interface FenceLine {
-  indent: string;
-  marks: string;
-  info: string;
-}
-
-function parseFenceLine(text: string): FenceLine | null {
-  const match = /^(\s{0,3})(`{3,}|~{3,})(.*)$/.exec(text);
-  if (!match) return null;
-  const indent = match[1] ?? "";
-  const marks = match[2] ?? "";
-  const rest = (match[3] ?? "").trimEnd();
-  const tick = marks[0] ?? "";
-  if (tick && rest.includes(tick)) return null;
-  return { indent, marks, info: rest.trim() };
-}
+import { parseFenceLine } from "./code-fence";
 
 function isClosingFence(text: string, marks: string) {
   const parsed = parseFenceLine(text);

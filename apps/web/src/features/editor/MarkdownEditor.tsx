@@ -32,7 +32,7 @@ function sourceChrome() {
 }
 
 function liveChrome() {
-  return [syntaxHighlighting(oneDarkHighlightStyle, { fallback: true })];
+  return [];
 }
 
 export function MarkdownEditor({
