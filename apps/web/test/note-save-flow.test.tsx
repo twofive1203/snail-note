@@ -21,6 +21,18 @@ function SaveHarness({ codeMirror = false, autoSaveMs = 0 }: { codeMirror?: bool
   );
 }
 
+function SwitchHarness() {
+  const [path, setPath] = useState("daily/a.md");
+  const note = useNoteDocument("notebook-1", path, { autoSaveMs: 0 });
+  return (
+    <div>
+      <div data-testid="loading">{note.loading ? "loading" : "ready"}</div>
+      <textarea aria-label="content" value={note.content} onChange={(event) => note.setContent(event.target.value)} />
+      <button onClick={() => setPath("daily/b.md")}>open b</button>
+    </div>
+  );
+}
+
 afterEach(() => vi.unstubAllGlobals());
 
 describe("note save flow", () => {
@@ -100,5 +112,31 @@ describe("note save flow", () => {
     await waitFor(() => expect(screen.getByText("磁盘只读")).toBeInTheDocument());
     expect(screen.getByLabelText("content")).toHaveValue("unsaved");
     expect(screen.getByText("未保存")).toBeInTheDocument();
+  });
+
+  it("marks the next document as loading on the same render as the path change", async () => {
+    let releaseB: ((response: Response) => void) | undefined;
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const path = new URL(String(input), "http://local").searchParams.get("path") ?? "";
+      if (path.endsWith("b.md")) {
+        return new Promise<Response>((resolve) => {
+          releaseB = resolve;
+        });
+      }
+      return Promise.resolve(new Response(JSON.stringify({ path, content: "# A", updatedAt: "now" }), { status: 200 }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SwitchHarness />);
+
+    await waitFor(() => expect(screen.getByLabelText("content")).toHaveValue("# A"));
+    expect(screen.getByTestId("loading")).toHaveTextContent("ready");
+
+    fireEvent.click(screen.getByRole("button", { name: "open b" }));
+    expect(screen.getByTestId("loading")).toHaveTextContent("loading");
+    expect(screen.getByLabelText("content")).toHaveValue("# A");
+
+    releaseB?.(new Response(JSON.stringify({ path: "daily/b.md", content: "# B", updatedAt: "now" }), { status: 200 }));
+    await waitFor(() => expect(screen.getByLabelText("content")).toHaveValue("# B"));
+    expect(screen.getByTestId("loading")).toHaveTextContent("ready");
   });
 });

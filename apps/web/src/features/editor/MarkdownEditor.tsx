@@ -91,19 +91,28 @@ export function MarkdownEditor({
   useEffect(() => {
     const editor = view.current;
     if (!editor) return;
+    const nextKey = syncKey ?? null;
     const doc = editor.state.doc.toString();
-    if (doc === value) {
-      if (!disabled) syncedKey.current = syncKey ?? null;
+    const keyChanged = syncedKey.current !== nextKey;
+
+    if (disabled) {
+      // Keep the previous document on screen until the new file finishes loading.
       return;
     }
-    if (disabled) return;
-    const sameDocument = syncedKey.current === (syncKey ?? null);
-    if (sameDocument && doc.length > 0) return;
+
+    if (doc === value) {
+      // Matching text is only proof of the new file after a key change if we
+      // already applied that file, or this is the editor's first document.
+      if (!keyChanged || syncedKey.current === null) syncedKey.current = nextKey;
+      return;
+    }
+
+    if (!keyChanged && doc.length > 0) return;
     editor.dispatch({
       changes: { from: 0, to: editor.state.doc.length, insert: value },
       annotations: [Transaction.addToHistory.of(false)],
     });
-    syncedKey.current = syncKey ?? null;
+    syncedKey.current = nextKey;
   }, [disabled, syncKey, value]);
 
   useEffect(() => {

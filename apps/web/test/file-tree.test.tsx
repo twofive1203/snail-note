@@ -18,6 +18,7 @@ const nodes = [{
 describe("FileTree", () => {
   it("shows only the first level until the user expands a directory", () => {
     const onOpenFile = vi.fn();
+    const onActivate = vi.fn();
     render(
       <FileTree
         nodes={nodes}
@@ -27,14 +28,45 @@ describe("FileTree", () => {
         filter=""
         collapseSignal={0}
         onOpenFile={onOpenFile}
-        onActivate={vi.fn()}
+        onActivate={onActivate}
       />,
     );
 
     expect(screen.queryByRole("button", { name: /会议记录\.md/ })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /daily/ }));
+    expect(onActivate).toHaveBeenCalledWith({ path: "daily", type: "directory" });
     fireEvent.click(screen.getByRole("button", { name: /会议记录\.md/ }));
     expect(onOpenFile).toHaveBeenCalledWith("daily/会议记录.md");
+    expect(onActivate).not.toHaveBeenCalledWith({ path: "daily/会议记录.md", type: "file" });
+  });
+
+  it("keeps the opened-file highlight on currentPath and ignores clicks while disabled", () => {
+    const onOpenFile = vi.fn();
+    const onActivate = vi.fn();
+    const props = {
+      nodes,
+      currentPath: "daily/会议记录.md",
+      activeEntry: { path: "daily", type: "directory" as const },
+      dirty: false,
+      filter: "",
+      collapseSignal: 0,
+      onOpenFile,
+      onActivate,
+    };
+    const { rerender } = render(<FileTree {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: /daily/ }));
+    onActivate.mockClear();
+
+    rerender(<FileTree {...props} disabled />);
+    const file = screen.getByRole("button", { name: /会议记录\.md/ });
+    const directory = screen.getByRole("button", { name: /daily/ });
+    expect(file).toHaveClass("selected");
+    expect(file).not.toHaveClass("active");
+    expect(directory).toHaveClass("active");
+    fireEvent.click(file);
+    fireEvent.click(directory);
+    expect(onOpenFile).not.toHaveBeenCalled();
+    expect(onActivate).not.toHaveBeenCalled();
   });
 
   it("shows an explicit empty search state", () => {

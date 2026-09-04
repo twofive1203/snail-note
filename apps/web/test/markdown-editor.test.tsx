@@ -393,4 +393,53 @@ describe("MarkdownEditor", () => {
       expect(editorView(container).state.doc.toString()).toBe("# loaded");
     });
   });
+
+  it("replaces content when switching files after a loading gap", async () => {
+    const { container, rerender } = render(
+      <MarkdownEditor value="# A" onChange={vi.fn()} onSave={vi.fn()} syncKey="a.md" />,
+    );
+    expect(editorView(container).state.doc.toString()).toBe("# A");
+
+    rerender(
+      <MarkdownEditor disabled value="# A" onChange={vi.fn()} onSave={vi.fn()} syncKey="b.md" />,
+    );
+    expect(editorView(container).state.doc.toString()).toBe("# A");
+
+    rerender(
+      <MarkdownEditor value="# B" onChange={vi.fn()} onSave={vi.fn()} syncKey="b.md" />,
+    );
+    await waitFor(() => {
+      expect(editorView(container).state.doc.toString()).toBe("# B");
+    });
+  });
+
+  it("replaces content when the new file arrives after a stale same-text frame", async () => {
+    const { container, rerender } = render(
+      <MarkdownEditor value="# A" onChange={vi.fn()} onSave={vi.fn()} syncKey="a.md" />,
+    );
+
+    rerender(
+      <MarkdownEditor value="# A" onChange={vi.fn()} onSave={vi.fn()} syncKey="b.md" />,
+    );
+    expect(editorView(container).state.doc.toString()).toBe("# A");
+
+    rerender(
+      <MarkdownEditor value="# B" onChange={vi.fn()} onSave={vi.fn()} syncKey="b.md" />,
+    );
+    await waitFor(() => {
+      expect(editorView(container).state.doc.toString()).toBe("# B");
+    });
+  });
+
+  it("does not clobber in-progress edits for the same file", async () => {
+    const { container, rerender } = render(
+      <MarkdownEditor value="# A" onChange={vi.fn()} onSave={vi.fn()} syncKey="a.md" />,
+    );
+    const view = editorView(container);
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: "typed" } });
+    rerender(
+      <MarkdownEditor value="# A" onChange={vi.fn()} onSave={vi.fn()} syncKey="a.md" />,
+    );
+    expect(editorView(container).state.doc.toString()).toBe("typed");
+  });
 });

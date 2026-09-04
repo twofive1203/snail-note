@@ -7,14 +7,19 @@ function normalizeEditorContent(content: string): string {
   return content.replace(/\r\n?/g, "\n");
 }
 
+function documentKey(notebookId: string | null, path: string | null): string {
+  return notebookId && path ? `${notebookId}\n${path}` : "";
+}
+
 export function useNoteDocument(
   notebookId: string | null,
   path: string | null,
   { autoSaveMs = DEFAULT_AUTO_SAVE_MS }: { autoSaveMs?: number } = {},
 ) {
+  const requestKey = documentKey(notebookId, path);
   const [content, setContent] = useState("");
   const [persistedContent, setPersistedContent] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loadedKey, setLoadedKey] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const loadSequence = useRef(0);
@@ -27,6 +32,7 @@ export function useNoteDocument(
   pathRef.current = path;
   contentRef.current = content;
   persistedRef.current = persistedContent;
+  const loading = Boolean(requestKey) && loadedKey !== requestKey;
 
   useEffect(() => {
     const sequence = ++loadSequence.current;
@@ -34,11 +40,11 @@ export function useNoteDocument(
       setContent("");
       setPersistedContent("");
       setError("");
-      setLoading(false);
+      setLoadedKey("");
       return;
     }
 
-    setLoading(true);
+    const targetKey = documentKey(notebookId, path);
     setError("");
     void editorApi.read(notebookId, path)
       .then((document) => {
@@ -46,13 +52,14 @@ export function useNoteDocument(
         const normalizedContent = normalizeEditorContent(document.content);
         setContent(normalizedContent);
         setPersistedContent(normalizedContent);
+        setLoadedKey(targetKey);
       })
       .catch((cause) => {
         if (sequence !== loadSequence.current) return;
         setError(cause instanceof Error ? cause.message : "笔记加载失败");
-      })
-      .finally(() => {
-        if (sequence === loadSequence.current) setLoading(false);
+        setContent("");
+        setPersistedContent("");
+        setLoadedKey(targetKey);
       });
   }, [notebookId, path]);
 
