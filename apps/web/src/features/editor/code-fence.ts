@@ -1,6 +1,6 @@
 import { syntaxTree } from "@codemirror/language";
 import { EditorSelection, type EditorState, type SelectionRange } from "@codemirror/state";
-import type { EditorView } from "@codemirror/view";
+import { EditorView } from "@codemirror/view";
 
 export interface FenceLine {
   indent: string;
@@ -88,6 +88,14 @@ export function fenceLineAt(fence: FenceRange, pos: number) {
   return null;
 }
 
+export function fenceEndPos(fence: FenceRange) {
+  return fence.close ? fence.close.to : fence.to;
+}
+
+export function fenceEndsDocument(state: EditorState, fence: FenceRange) {
+  return fenceEndPos(fence) >= state.doc.length;
+}
+
 export function gapPosBesideFence(state: EditorState, fence: FenceRange, which: "open" | "close") {
   if (which === "open") {
     if (fence.open.from === 0) return fence.bodyFrom;
@@ -96,6 +104,23 @@ export function gapPosBesideFence(state: EditorState, fence: FenceRange, which: 
   if (!fence.close || fence.close.to >= state.doc.length) return fence.bodyTo;
   const next = Math.min(state.doc.length, fence.close.to + 1);
   return state.doc.lineAt(next).from;
+}
+
+export function insertLineAfterFence(view: EditorView, fence: FenceRange) {
+  const after = fenceEndPos(fence);
+  if (after < view.state.doc.length) {
+    const dest = view.state.doc.lineAt(Math.min(view.state.doc.length, after + 1)).from;
+    view.dispatch({ selection: EditorSelection.cursor(dest), userEvent: "select" });
+    return true;
+  }
+  if (view.state.readOnly || view.state.facet(EditorView.editable) === false) return false;
+  view.dispatch({
+    changes: { from: after, insert: "\n" },
+    selection: EditorSelection.cursor(after + 1),
+    scrollIntoView: true,
+    userEvent: "input",
+  });
+  return true;
 }
 
 function clampFencePos(state: EditorState, pos: number) {

@@ -1,9 +1,17 @@
 import { HighlightStyle, syntaxHighlighting, syntaxTree } from "@codemirror/language";
 import { EditorSelection, EditorState, Prec, RangeSet, StateEffect, StateField, type Range } from "@codemirror/state";
-import { BlockWrapper, Decoration, type DecorationSet, EditorView, ViewPlugin, WidgetType } from "@codemirror/view";
+import { BlockWrapper, Decoration, type DecorationSet, EditorView, keymap, ViewPlugin, WidgetType } from "@codemirror/view";
 import { tags as t } from "@lezer/highlight";
 import { FenceLangWidget, closeFenceLangMenu } from "./code-block-lang";
-import { clampFencePointerSelection, fenceLineAt, findFenceAt, gapPosBesideFence, type FenceRange } from "./code-fence";
+import {
+  clampFencePointerSelection,
+  fenceEndsDocument,
+  fenceLineAt,
+  findFenceAt,
+  gapPosBesideFence,
+  insertLineAfterFence,
+  type FenceRange,
+} from "./code-fence";
 import { mountMermaid } from "./mermaid-render";
 
 const HIDDEN_MARKS = new Set([
@@ -421,6 +429,40 @@ function gapBetweenCodeBlocks(view: EditorView, y: number) {
   return null;
 }
 
+function lastVisualCodeBlock(view: EditorView) {
+  const blocks = [...view.contentDOM.querySelectorAll<HTMLElement>(".sn-md-codeblock")]
+    .map((el) => ({ el, rect: el.getBoundingClientRect() }))
+    .filter((item) => item.rect.height > 0)
+    .sort((a, b) => a.rect.top - b.rect.top);
+  return blocks[blocks.length - 1] ?? null;
+}
+
+function clickAfterLastFence(view: EditorView, clientY: number) {
+  const last = lastVisualCodeBlock(view);
+  if (!last || clientY <= last.rect.bottom) return false;
+  const raw = last.el.getAttribute("data-sn-fence");
+  if (raw == null) return false;
+  const fenceFrom = Number(raw);
+  if (!Number.isFinite(fenceFrom)) return false;
+  const fence = findFenceAt(view.state, fenceFrom);
+  if (!fence || !fenceEndsDocument(view.state, fence)) return false;
+  return insertLineAfterFence(view, fence);
+}
+
+function exitTrailingFenceOnArrowDown(view: EditorView) {
+  if (view.state.field(livePreviewEnabled, false) === false) return false;
+  const range = view.state.selection.main;
+  if (!range.empty) return false;
+  const fence = findFenceAt(view.state, range.head);
+  if (!fence?.hasBody || !fenceEndsDocument(view.state, fence)) return false;
+  const lastBody = view.state.doc.lineAt(fence.bodyTo);
+  if (view.state.doc.lineAt(range.head).number !== lastBody.number) return false;
+  const coords = view.coordsAtPos(range.head);
+  const endCoords = view.coordsAtPos(lastBody.to);
+  if (coords && endCoords && coords.bottom < endCoords.top - 1) return false;
+  return insertLineAfterFence(view, fence);
+}
+
 function gapPosForOutsideClick(view: EditorView, clientY: number, fence: FenceRange) {
   const el = view.contentDOM.querySelector<HTMLElement>(`.sn-md-codeblock[data-sn-fence="${fence.from}"]`);
   const rect = el?.getBoundingClientRect();
@@ -490,6 +532,7 @@ function remapFencePaddingClick(event: MouseEvent, view: EditorView) {
     view.dispatch({ selection: EditorSelection.cursor(dest), userEvent: "select" });
     return true;
   }
+  if (clickAfterLastFence(view, y)) return true;
   const pos = view.posAtCoords({ x, y }) ?? view.posAtCoords({ x, y }, false);
   if (pos == null) return false;
   const fence = findFenceAt(view.state, pos);
@@ -519,10 +562,15 @@ const fencePointerClick = Prec.highest(
   }),
 );
 
+const exitTrailingFenceKeymap = Prec.high(
+  keymap.of([{ key: "ArrowDown", run: exitTrailingFenceOnArrowDown }]),
+);
+
 const livePreviewMouse = ViewPlugin.fromClass(
   class {
     private readonly onMouseDown: () => void;
     private readonly onMouseUp: () => void;
+    private readonly onScrollerMouseDown: (event: MouseEvent) => void;
 
     constructor(private readonly view: EditorView) {
       this.onMouseDown = () => {
@@ -535,12 +583,19 @@ const livePreviewMouse = ViewPlugin.fromClass(
           view.dispatch({ effects: setMouseSelecting.of(false) });
         }
       };
+      this.onScrollerMouseDown = (event) => {
+        const target = event.target as Node | null;
+        if (!target || view.contentDOM.contains(target)) return;
+        if (remapFencePaddingClick(event, view)) event.preventDefault();
+      };
       view.contentDOM.addEventListener("mousedown", this.onMouseDown);
+      view.scrollDOM.addEventListener("mousedown", this.onScrollerMouseDown);
       window.addEventListener("mouseup", this.onMouseUp);
     }
 
     destroy() {
       this.view.contentDOM.removeEventListener("mousedown", this.onMouseDown);
+      this.view.scrollDOM.removeEventListener("mousedown", this.onScrollerMouseDown);
       window.removeEventListener("mouseup", this.onMouseUp);
       closeFenceLangMenu();
     }
@@ -621,5 +676,6 @@ export function livePreviewExtensions(enabled = true) {
     livePreviewMouse,
     clampFencePointer,
     fencePointerClick,
+    exitTrailingFenceKeymap,
   ];
 }

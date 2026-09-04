@@ -138,6 +138,77 @@ describe("MarkdownEditor", () => {
     expect(container.querySelector(".sn-md-codeblock")?.textContent).toContain("nice");
   });
 
+  it("inserts a line after a trailing code block when clicking below it", async () => {
+    const onChange = vi.fn();
+    const { container } = render(
+      <MarkdownEditor value={"```\nnice\n```"} onChange={onChange} onSave={vi.fn()} />,
+    );
+    await waitFor(() => {
+      expect(container.querySelector(".sn-md-codeblock")).toBeInTheDocument();
+    });
+    const view = editorView(container);
+    const block = container.querySelector(".sn-md-codeblock")!;
+    vi.spyOn(block, "getBoundingClientRect").mockReturnValue({
+      x: 10,
+      y: 10,
+      top: 10,
+      left: 10,
+      bottom: 40,
+      right: 200,
+      width: 190,
+      height: 30,
+      toJSON() {
+        return {};
+      },
+    });
+    fireEvent.mouseDown(view.contentDOM, { button: 0, clientX: 40, clientY: 80 });
+    expect(view.state.doc.toString()).toBe("```\nnice\n```\n");
+    expect(view.state.doc.lineAt(view.state.selection.main.head).text).toBe("");
+    expect(view.state.selection.main.head).toBe(view.state.doc.length);
+    expect(onChange).toHaveBeenCalled();
+  });
+
+  it("does not insert another line when a trailing code block already has a blank line after it", async () => {
+    const { container } = render(
+      <MarkdownEditor value={"```\nnice\n```\n"} onChange={vi.fn()} onSave={vi.fn()} />,
+    );
+    await waitFor(() => {
+      expect(container.querySelector(".sn-md-codeblock")).toBeInTheDocument();
+    });
+    const view = editorView(container);
+    const before = view.state.doc.toString();
+    const block = container.querySelector(".sn-md-codeblock")!;
+    vi.spyOn(block, "getBoundingClientRect").mockReturnValue({
+      x: 10,
+      y: 10,
+      top: 10,
+      left: 10,
+      bottom: 40,
+      right: 200,
+      width: 190,
+      height: 30,
+      toJSON() {
+        return {};
+      },
+    });
+    fireEvent.mouseDown(view.contentDOM, { button: 0, clientX: 40, clientY: 80 });
+    expect(view.state.doc.toString()).toBe(before);
+  });
+
+  it("leaves a trailing code block on ArrowDown from the last code line", async () => {
+    const { container } = render(
+      <MarkdownEditor value={"```\nnice\n```"} onChange={vi.fn()} onSave={vi.fn()} />,
+    );
+    await waitFor(() => {
+      expect(container.querySelector(".sn-md-codeblock")).toBeInTheDocument();
+    });
+    const view = editorView(container);
+    view.dispatch({ selection: { anchor: view.state.doc.toString().indexOf("nice") } });
+    fireEvent.keyDown(view.contentDOM, { key: "ArrowDown" });
+    expect(view.state.doc.toString()).toBe("```\nnice\n```\n");
+    expect(view.state.doc.lineAt(view.state.selection.main.head).text).toBe("");
+  });
+
   it("does not pull the cursor into a neighboring code block when clicking the gap", async () => {
     const doc = "```\npublic void\n```\n\n\n\n```js\nconst value = 1;\n```\n";
     const { container } = render(<MarkdownEditor value={doc} onChange={vi.fn()} onSave={vi.fn()} />);
