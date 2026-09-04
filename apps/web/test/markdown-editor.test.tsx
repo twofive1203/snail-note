@@ -1,6 +1,11 @@
+import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
+import { syntaxTree } from "@codemirror/language";
+import { EditorState } from "@codemirror/state";
+import { classHighlighter, highlightTree } from "@lezer/highlight";
 import { EditorView } from "@codemirror/view";
 import { fireEvent, render, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { fenceCodeLanguage } from "../src/features/editor/code-languages";
 import { completeFencedCodeOnEnter } from "../src/features/editor/fence-complete";
 import { MarkdownEditor } from "../src/features/editor/MarkdownEditor";
 
@@ -99,6 +104,29 @@ describe("MarkdownEditor", () => {
       expect(view.contentDOM.textContent).toContain("good");
       expect(container.querySelector(".sn-md-codeblock")).toBeInTheDocument();
     });
+  });
+
+  it("maps fenced code languages including curl and skips mermaid", () => {
+    expect(fenceCodeLanguage("js")?.name).toBe("JavaScript");
+    expect(fenceCodeLanguage("ts")?.name).toBe("TypeScript");
+    expect(fenceCodeLanguage("java")?.name).toBe("Java");
+    expect(fenceCodeLanguage("bash")?.name).toBe("Shell");
+    expect(fenceCodeLanguage("curl")?.name).toBe("Shell");
+    expect(fenceCodeLanguage("mermaid")).toBeNull();
+  });
+
+  it("parses javascript fences with a nested language", async () => {
+    await fenceCodeLanguage("js")?.load();
+    const state = EditorState.create({
+      doc: "```js\nconst value = 1;\n```\n",
+      extensions: [markdown({ base: markdownLanguage, codeLanguages: fenceCodeLanguage })],
+    });
+    const tree = syntaxTree(state);
+    const tagged: string[] = [];
+    highlightTree(tree, classHighlighter, (from, to, classes) => {
+      tagged.push(`${state.sliceDoc(from, to)}:${classes}`);
+    });
+    expect(tagged.some((entry) => entry.includes("const") && entry.includes("keyword"))).toBe(true);
   });
 
   it("keeps source edits when switching back to live even if React passes a stale value", async () => {

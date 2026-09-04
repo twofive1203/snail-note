@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import DOMPurify from "dompurify";
-import { marked } from "marked";
 import { mountMermaid } from "./mermaid-render";
+import { renderMarkdown } from "./preview-highlight";
 
 function isMermaidCode(code: Element) {
   const lang = (code.className.match(/language-(\S+)/i)?.[1] ?? "").toLowerCase();
@@ -9,7 +9,7 @@ function isMermaidCode(code: Element) {
 }
 
 export function MarkdownPreview({ content }: { content: string }) {
-  const html = useMemo(() => DOMPurify.sanitize(marked.parse(content, { breaks: true }) as string), [content]);
+  const html = useMemo(() => DOMPurify.sanitize(renderMarkdown(content)), [content]);
   const root = useRef<HTMLElement>(null);
 
   useEffect(() => {

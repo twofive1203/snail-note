@@ -16,6 +16,13 @@ describe("MarkdownPreview", () => {
     expect(container.querySelector("img")).not.toHaveAttribute("onerror");
   });
 
+  it("highlights fenced javascript in preview", () => {
+    const { container } = render(<MarkdownPreview content={"```js\nconst value = 1;\n```"} />);
+    const code = container.querySelector("pre code.hljs");
+    expect(code).toBeInTheDocument();
+    expect(code?.querySelector(".hljs-keyword")).toHaveTextContent("const");
+  });
+
   it("renders mermaid fences as diagrams", async () => {
     const { container } = render(<MarkdownPreview content={"```mermaid\ngraph TD\nA-->B\n```"} />);
     await waitFor(() => {

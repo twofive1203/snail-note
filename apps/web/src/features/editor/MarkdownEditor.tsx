@@ -13,6 +13,7 @@ import {
   placeholder,
 } from "@codemirror/view";
 import { oneDarkHighlightStyle, oneDarkTheme } from "@codemirror/theme-one-dark";
+import { fenceCodeLanguage } from "./code-languages";
 import { saveKeyBinding } from "./editor-shortcuts";
 import { fenceCompleteKeymap } from "./fence-complete";
 import { livePreviewEnabledEffect, livePreviewExtensions } from "./live-preview";
@@ -28,6 +29,10 @@ interface MarkdownEditorProps {
 
 function sourceChrome() {
   return [lineNumbers(), highlightActiveLineGutter(), syntaxHighlighting(oneDarkHighlightStyle)];
+}
+
+function liveChrome() {
+  return [syntaxHighlighting(oneDarkHighlightStyle, { fallback: true })];
 }
 
 export function MarkdownEditor({
@@ -59,14 +64,14 @@ export function MarkdownEditor({
           history(),
           drawSelection(),
           highlightActiveLine(),
-          markdown({ base: markdownLanguage }),
+          markdown({ base: markdownLanguage, codeLanguages: fenceCodeLanguage }),
           placeholder("开始书写…"),
           fenceCompleteKeymap(),
           keymap.of([saveKeyBinding(() => onSaveRef.current()), indentWithTab, ...defaultKeymap, ...historyKeymap]),
           editable.current.of(EditorView.editable.of(!disabled)),
           oneDarkTheme,
           livePreviewExtensions(livePreview),
-          chrome.current.of(livePreview ? [] : sourceChrome()),
+          chrome.current.of(livePreview ? liveChrome() : sourceChrome()),
           EditorView.lineWrapping,
           EditorView.updateListener.of((update) => {
             if (update.docChanged) onChangeRef.current(update.state.doc.toString());
@@ -123,7 +128,7 @@ export function MarkdownEditor({
         view.current.dispatch({
           effects: [
             livePreviewEnabledEffect(livePreview),
-            chrome.current.reconfigure(livePreview ? [] : sourceChrome()),
+            chrome.current.reconfigure(livePreview ? liveChrome() : sourceChrome()),
           ],
         });
       } catch (error) {

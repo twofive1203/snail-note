@@ -203,7 +203,15 @@ button:disabled { cursor: default; opacity: .45; }
 .markdown-preview blockquote { margin: .8em 0; padding: .2em 1em; border-left: 3px solid var(--accent); border-radius: 0 6px 6px 0; color: var(--dim); background: rgba(139, 92, 246, .06); }
 .markdown-preview code { padding: 2px 5px; border-radius: 4px; color: #f0abfc; background: var(--panel); font-family: var(--mono); font-size: .88em; }
 .markdown-preview pre { overflow: auto; padding: 14px 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
-.markdown-preview pre code { padding: 0; color: var(--text); background: none; }
+.markdown-preview pre code { padding: 0; color: #abb2bf; background: none; }
+.markdown-preview .hljs-comment, .markdown-preview .hljs-quote { color: #7d8799; font-style: italic; }
+.markdown-preview .hljs-keyword, .markdown-preview .hljs-selector-tag { color: #c678dd; }
+.markdown-preview .hljs-string, .markdown-preview .hljs-addition, .markdown-preview .hljs-meta .hljs-string { color: #98c379; }
+.markdown-preview .hljs-number, .markdown-preview .hljs-literal, .markdown-preview .hljs-attr, .markdown-preview .hljs-attribute, .markdown-preview .hljs-variable, .markdown-preview .hljs-template-variable { color: #d19a66; }
+.markdown-preview .hljs-title, .markdown-preview .hljs-section, .markdown-preview .hljs-name, .markdown-preview .hljs-selector-id, .markdown-preview .hljs-selector-class { color: #61afef; }
+.markdown-preview .hljs-type, .markdown-preview .hljs-class .hljs-title, .markdown-preview .hljs-built_in { color: #e5c07b; }
+.markdown-preview .hljs-symbol, .markdown-preview .hljs-bullet, .markdown-preview .hljs-link, .markdown-preview .hljs-meta, .markdown-preview .hljs-selector-attr, .markdown-preview .hljs-regexp { color: #56b6c2; }
+.markdown-preview .hljs-deletion, .markdown-preview .hljs-tag { color: #e06c75; }
 .markdown-preview a { color: var(--accent-soft); }
 .markdown-preview table { width: 100%; border-collapse: collapse; }
 .markdown-preview th, .markdown-preview td { padding: 6px 11px; border: 1px solid var(--border); text-align: left; }
