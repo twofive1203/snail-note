@@ -157,15 +157,18 @@ button:disabled { cursor: default; opacity: .45; }
 }
 .markdown-editor.is-live .sn-md-hr {
   width: 100%;
-  margin: .8em 0;
+  margin: 0;
+  padding: .8em 0 0;
   border: 0;
   border-top: 1px solid var(--border);
 }
 .markdown-editor.is-live .sn-md-codeblock {
   position: relative;
   overflow-x: auto;
-  margin: .65em 0;
-  padding: 14px 16px;
+  /* Vertical spacing must be padding, not margin: CodeMirror's height map
+     ignores wrapper margins, so ArrowUp/ArrowDown would skip lines. */
+  margin: 0;
+  padding: 16px;
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--text);
@@ -307,13 +310,14 @@ button:disabled { cursor: default; opacity: .45; }
 .markdown-preview .sn-mermaid,
 .markdown-editor.is-live .sn-md-mermaid {
   overflow-x: auto;
-  margin: .8em 0;
   padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--panel);
   text-align: center;
 }
+.markdown-preview .sn-mermaid { margin: .8em 0; }
+.markdown-editor.is-live .sn-md-mermaid { margin: 0; }
 .markdown-preview .sn-mermaid svg,
 .markdown-editor.is-live .sn-md-mermaid svg { max-width: 100%; height: auto; }
 .markdown-preview .sn-mermaid.is-error,

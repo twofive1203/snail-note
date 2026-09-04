@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { syntaxTree } from "@codemirror/language";
 import { EditorState } from "@codemirror/state";
@@ -86,6 +87,21 @@ describe("MarkdownEditor", () => {
     expect(text).toContain("nice");
     expect(text).not.toContain("```");
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("does not use vertical CSS margin on live-preview block chrome", () => {
+    const css = readFileSync("src/styles.css", "utf8");
+    for (const selector of [
+      ".markdown-editor.is-live .sn-md-codeblock",
+      ".markdown-editor.is-live .sn-md-mermaid",
+      ".markdown-editor.is-live .sn-md-hr",
+    ]) {
+      const start = css.lastIndexOf(`${selector} {`);
+      expect(start, selector).toBeGreaterThan(-1);
+      const body = css.slice(start, css.indexOf("}", start));
+      expect(body, selector).toMatch(/margin:\s*0\s*;/);
+      expect(body, selector).not.toMatch(/margin:\s*(?:\.|[1-9])/);
+    }
   });
 
   it("keeps fence marks hidden and shows a language switcher when the cursor is inside the block", async () => {
