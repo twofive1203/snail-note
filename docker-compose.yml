@@ -4,7 +4,7 @@ services:
     container_name: snail-note
     restart: unless-stopped
     ports:
-      - "8787:8787"
+      - "61666:61666"
     environment:
       SNAIL_NOTE_DATA_DIR: /data
     volumes:

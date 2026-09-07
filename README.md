@@ -10,10 +10,12 @@
 - 在笔记本列表中切换不同 Markdown 文件夹和多级目录
 - 创建、读取、编辑、保存、重命名、移动、删除 `.md` 文件
 - 创建、重命名、移动和删除空目录
-- CodeMirror 6 Markdown 原文编辑，支持 `Ctrl/Cmd + S` 保存
-- 编辑、分屏、预览三种模式；预览内容经过 XSS 清理
+- CodeMirror 6 Markdown 原文编辑，默认 Obsidian 式实时预览（未聚焦行隐藏语法符），源码字节不变
+- 实时、源码、分屏、预览四种模式；预览内容经过 XSS 清理；支持 `Ctrl/Cmd + S` 保存
+- 停顿约 1 秒后自动保存；切换文件、笔记本或编辑模式时会先写入磁盘
+- 实时预览和预览模式渲染 ` ```mermaid ` 代码块
 - `Ctrl/Cmd + K` 全文搜索并跳转到结果
-- 未保存状态和切换确认
+- 未保存状态；保存失败时切换文件会再次确认
 - 相对路径校验、目录越界和符号链接逃逸防护
 
 ## 技术栈
@@ -44,7 +46,7 @@ pnpm dev
 默认地址：
 
 - Web: <http://localhost:5173>
-- API: <http://localhost:8787/api/health>
+- API: <http://localhost:61666/api/health>
 
 已有文件夹无需迁移或转换，详细说明见 [接入已有 Markdown 文件夹](docs/usage/import-existing-folder.md)。为兼容旧配置，首次升级且尚无笔记本配置文件时，已有的 `NOTEBOOK_ROOT` 仍会自动注册为第一个笔记本。
 
@@ -57,7 +59,7 @@ pnpm build
 pnpm start
 ```
 
-生产启动时，Fastify 会同时提供 `apps/web/dist` 静态文件和 `/api` 接口，默认访问 <http://localhost:8787>。
+生产启动时，Fastify 会同时提供 `apps/web/dist` 静态文件和 `/api` 接口，默认访问 <http://localhost:61666>。
 
 ## Docker Compose
 
@@ -73,7 +75,7 @@ NOTEBOOK_HOST_PATH=D:/Notes
 docker compose up -d --build
 ```
 
-3. 打开 <http://localhost:8787>。
+3. 打开 <http://localhost:61666>。
 
 挂载关系是 `${NOTEBOOK_HOST_PATH} -> /notes`。打开页面后可从 `/notes` 下分别选择多个子目录作为笔记本。容器只能浏览已挂载到容器内的目录；如需选择其他宿主机目录，需要先在 `docker-compose.yml` 中增加对应挂载。笔记本列表存储在 Docker 数据卷中。
 

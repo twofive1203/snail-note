@@ -12,12 +12,18 @@
   "dependencies": {
     "@codemirror/commands": "^6.8.1",
     "@codemirror/lang-markdown": "^6.3.4",
+    "@codemirror/language": "^6.12.4",
+    "@codemirror/language-data": "^6.5.2",
     "@codemirror/state": "^6.5.2",
     "@codemirror/theme-one-dark": "^6.1.2",
     "@codemirror/view": "^6.38.2",
+    "@lezer/highlight": "^1.2.3",
+    "@lezer/markdown": "^1.7.2",
     "@snail-note/shared": "workspace:*",
     "dompurify": "^3.2.6",
+    "highlight.js": "^11.12.0",
     "marked": "^16.2.1",
+    "mermaid": "^11.17.2",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },

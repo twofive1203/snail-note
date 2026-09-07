@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
-import { markdown } from "@codemirror/lang-markdown";
-import { Compartment, EditorState } from "@codemirror/state";
+import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
+import { syntaxHighlighting } from "@codemirror/language";
+import { Compartment, EditorState, Transaction } from "@codemirror/state";
 import {
   drawSelection,
   EditorView,
@@ -11,22 +12,45 @@ import {
   lineNumbers,
   placeholder,
 } from "@codemirror/view";
-import { oneDark } from "@codemirror/theme-one-dark";
+import { oneDarkHighlightStyle, oneDarkTheme } from "@codemirror/theme-one-dark";
+import { fenceCodeLanguage } from "./code-languages";
 import { saveKeyBinding } from "./editor-shortcuts";
+import { fenceCompleteKeymap } from "./fence-complete";
+import { livePreviewEnabledEffect, livePreviewExtensions } from "./live-preview";
 
 interface MarkdownEditorProps {
   value: string;
   disabled?: boolean;
+  livePreview?: boolean;
+  syncKey?: string;
   onChange: (value: string) => void;
   onSave: () => void;
 }
 
-export function MarkdownEditor({ value, disabled = false, onChange, onSave }: MarkdownEditorProps) {
+function sourceChrome() {
+  return [lineNumbers(), highlightActiveLineGutter(), syntaxHighlighting(oneDarkHighlightStyle)];
+}
+
+function liveChrome() {
+  return [];
+}
+
+export function MarkdownEditor({
+  value,
+  disabled = false,
+  livePreview = true,
+  syncKey,
+  onChange,
+  onSave,
+}: MarkdownEditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
   const editable = useRef(new Compartment());
+  const chrome = useRef(new Compartment());
+  const syncedKey = useRef<string | null>(null);
+  const skipModeEffect = useRef(true);
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
 
@@ -37,16 +61,17 @@ export function MarkdownEditor({ value, disabled = false, onChange, onSave }: Ma
       state: EditorState.create({
         doc: value,
         extensions: [
-          lineNumbers(),
-          highlightActiveLineGutter(),
           history(),
           drawSelection(),
           highlightActiveLine(),
-          markdown(),
-          oneDark,
+          markdown({ base: markdownLanguage, codeLanguages: fenceCodeLanguage }),
           placeholder("开始书写…"),
+          fenceCompleteKeymap(),
           keymap.of([saveKeyBinding(() => onSaveRef.current()), indentWithTab, ...defaultKeymap, ...historyKeymap]),
           editable.current.of(EditorView.editable.of(!disabled)),
+          oneDarkTheme,
+          livePreviewExtensions(livePreview),
+          chrome.current.of(livePreview ? liveChrome() : sourceChrome()),
           EditorView.lineWrapping,
           EditorView.updateListener.of((update) => {
             if (update.docChanged) onChangeRef.current(update.state.doc.toString());
@@ -65,13 +90,73 @@ export function MarkdownEditor({ value, disabled = false, onChange, onSave }: Ma
 
   useEffect(() => {
     const editor = view.current;
-    if (!editor || editor.state.doc.toString() === value) return;
-    editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: value } });
-  }, [value]);
+    if (!editor) return;
+    const nextKey = syncKey ?? null;
+    const doc = editor.state.doc.toString();
+    const keyChanged = syncedKey.current !== nextKey;
+
+    if (disabled) {
+      // Keep the previous document on screen until the new file finishes loading.
+      return;
+    }
+
+    if (doc === value) {
+      // Matching text is only proof of the new file after a key change if we
+      // already applied that file, or this is the editor's first document.
+      if (!keyChanged || syncedKey.current === null) syncedKey.current = nextKey;
+      return;
+    }
+
+    if (!keyChanged && doc.length > 0) return;
+    editor.dispatch({
+      changes: { from: 0, to: editor.state.doc.length, insert: value },
+      annotations: [Transaction.addToHistory.of(false)],
+    });
+    syncedKey.current = nextKey;
+  }, [disabled, syncKey, value]);
 
   useEffect(() => {
     view.current?.dispatch({ effects: editable.current.reconfigure(EditorView.editable.of(!disabled)) });
   }, [disabled]);
 
-  return <div className="markdown-editor" ref={host} aria-label="Markdown 编辑器" />;
+  useEffect(() => {
+    if (skipModeEffect.current) {
+      skipModeEffect.current = false;
+      return;
+    }
+    const editor = view.current;
+    if (!editor) return;
+    let cancelled = false;
+    const apply = () => {
+      if (cancelled || !view.current) return;
+      if (view.current.composing) {
+        view.current.contentDOM.addEventListener("compositionend", apply, { once: true });
+        return;
+      }
+      try {
+        view.current.dispatch({
+          effects: [
+            livePreviewEnabledEffect(livePreview),
+            chrome.current.reconfigure(livePreview ? liveChrome() : sourceChrome()),
+          ],
+        });
+      } catch (error) {
+        console.error("Failed to switch editor mode", error);
+      }
+    };
+    const timer = window.setTimeout(apply, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+      editor.contentDOM.removeEventListener("compositionend", apply);
+    };
+  }, [livePreview]);
+
+  return (
+    <div
+      className={`markdown-editor${livePreview ? " is-live" : ""}`}
+      ref={host}
+      aria-label={livePreview ? "Markdown 实时预览编辑器" : "Markdown 编辑器"}
+    />
+  );
 }
