@@ -1,0 +1,45 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-].+)?$ ]]; then
+            echo "Tag must look like v1.2.3 (optional suffix: v1.2.3-rc.1)"
+            exit 1
+          fi
+
+          args=(
+            --repo "$GITHUB_REPOSITORY"
+            --title "$tag"
+            --generate-notes
+          )
+          if [[ "$tag" == *-* ]]; then
+            args+=(--prerelease)
+          fi
+
+          gh release create "$tag" "${args[@]}"
