@@ -138,6 +138,22 @@ describe("MarkdownEditor", () => {
     expect(container.querySelector(".sn-md-codeblock")?.textContent).toContain("nice");
   });
 
+  it("puts the cursor inside an empty live-preview code block on click", async () => {
+    const { container } = render(
+      <MarkdownEditor value={"asdfasdf\n\n```\n\n```\n"} onChange={vi.fn()} onSave={vi.fn()} />,
+    );
+    await waitFor(() => {
+      expect(container.querySelector(".sn-md-codeblock")).toBeInTheDocument();
+    });
+    const view = editorView(container);
+    view.contentDOM.blur();
+    fireEvent.mouseDown(container.querySelector(".sn-md-codeblock")!);
+    const head = view.state.selection.main.head;
+    expect(view.state.doc.lineAt(head).text).toBe("");
+    expect(view.state.doc.lineAt(head).number).toBe(4);
+    expect(view.hasFocus).toBe(true);
+  });
+
   it("inserts a line after a trailing code block when clicking below it", async () => {
     const onChange = vi.fn();
     const { container } = render(
@@ -193,6 +209,29 @@ describe("MarkdownEditor", () => {
     });
     fireEvent.mouseDown(view.contentDOM, { button: 0, clientX: 40, clientY: 80 });
     expect(view.state.doc.toString()).toBe(before);
+  });
+
+  it("does not pull the cursor into a code block when clicking below it", async () => {
+    const { container } = render(
+      <MarkdownEditor value={"```\nnice\n```\n\nbelow\n"} onChange={vi.fn()} onSave={vi.fn()} />,
+    );
+    await waitFor(() => {
+      expect(container.querySelector(".sn-md-codeblock")).toBeInTheDocument();
+    });
+    const view = editorView(container);
+    const block = container.querySelector(".sn-md-codeblock")!;
+    const line = block.querySelector(".cm-line")!;
+    vi.spyOn(block, "getBoundingClientRect").mockReturnValue({
+      x: 10, y: 10, top: 10, left: 10, bottom: 60, right: 200, width: 190, height: 50,
+      toJSON() { return {}; },
+    });
+    vi.spyOn(line, "getBoundingClientRect").mockReturnValue({
+      x: 20, y: 16, top: 16, left: 20, bottom: 30, right: 180, width: 160, height: 14,
+      toJSON() { return {}; },
+    });
+    fireEvent.mouseDown(block, { button: 0, clientX: 40, clientY: 48 });
+    expect(view.state.doc.lineAt(view.state.selection.main.head).text).not.toBe("nice");
+    expect(view.state.doc.lineAt(view.state.selection.main.head).text).toBe("");
   });
 
   it("leaves a trailing code block on ArrowDown from the last code line", async () => {

@@ -6,7 +6,6 @@ import { FenceLangWidget, closeFenceLangMenu } from "./code-block-lang";
 import {
   clampFencePointerSelection,
   fenceEndsDocument,
-  fenceLineAt,
   findFenceAt,
   gapPosBesideFence,
   insertLineAfterFence,
@@ -406,47 +405,29 @@ const livePreviewDecorations = StateField.define<LivePreviewVisuals>({
   ],
 });
 
-function visualCodeBlockAt(view: EditorView, x: number, y: number) {
-  for (const el of view.contentDOM.querySelectorAll<HTMLElement>(".sn-md-codeblock")) {
-    const rect = el.getBoundingClientRect();
-    if (rect.width <= 0 && rect.height <= 0) continue;
-    if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) return el;
+function visibleCodeBlocks(view: EditorView) {
+  return [...view.contentDOM.querySelectorAll<HTMLElement>(".sn-md-codeblock")]
+    .map((el) => ({ el, rect: el.getBoundingClientRect() }))
+    .filter((item) => item.rect.height > 0)
+    .sort((a, b) => a.rect.top - b.rect.top);
+}
+
+function visibleLineRect(block: HTMLElement, which: "first" | "last") {
+  const lines = [...block.querySelectorAll<HTMLElement>(".cm-line")];
+  const ordered = which === "first" ? lines : [...lines].reverse();
+  for (const line of ordered) {
+    const rect = line.getBoundingClientRect();
+    if (rect.height > 0) return rect;
   }
   return null;
 }
 
-function gapBetweenCodeBlocks(view: EditorView, y: number) {
-  const blocks = [...view.contentDOM.querySelectorAll<HTMLElement>(".sn-md-codeblock")]
-    .map((el) => ({ el, rect: el.getBoundingClientRect() }))
-    .filter((item) => item.rect.height > 0)
-    .sort((a, b) => a.rect.top - b.rect.top);
-  for (let i = 0; i < blocks.length - 1; i += 1) {
-    const above = blocks[i];
-    const below = blocks[i + 1];
-    if (!above || !below) continue;
-    if (y > above.rect.bottom && y < below.rect.top) return { above: above.el, below: below.el };
-  }
-  return null;
-}
-
-function lastVisualCodeBlock(view: EditorView) {
-  const blocks = [...view.contentDOM.querySelectorAll<HTMLElement>(".sn-md-codeblock")]
-    .map((el) => ({ el, rect: el.getBoundingClientRect() }))
-    .filter((item) => item.rect.height > 0)
-    .sort((a, b) => a.rect.top - b.rect.top);
-  return blocks[blocks.length - 1] ?? null;
-}
-
-function clickAfterLastFence(view: EditorView, clientY: number) {
-  const last = lastVisualCodeBlock(view);
-  if (!last || clientY <= last.rect.bottom) return false;
-  const raw = last.el.getAttribute("data-sn-fence");
-  if (raw == null) return false;
-  const fenceFrom = Number(raw);
-  if (!Number.isFinite(fenceFrom)) return false;
+function fenceForBlock(view: EditorView, el: HTMLElement) {
+  const fenceFrom = Number(el.getAttribute("data-sn-fence"));
+  if (!Number.isFinite(fenceFrom)) return null;
   const fence = findFenceAt(view.state, fenceFrom);
-  if (!fence || !fenceEndsDocument(view.state, fence)) return false;
-  return insertLineAfterFence(view, fence);
+  if (!fence?.hasBody || fence.language === "mermaid") return null;
+  return fence;
 }
 
 function exitTrailingFenceOnArrowDown(view: EditorView) {
@@ -463,35 +444,56 @@ function exitTrailingFenceOnArrowDown(view: EditorView) {
   return insertLineAfterFence(view, fence);
 }
 
-function gapPosForOutsideClick(view: EditorView, clientY: number, fence: FenceRange) {
-  const el = view.contentDOM.querySelector<HTMLElement>(`.sn-md-codeblock[data-sn-fence="${fence.from}"]`);
-  const rect = el?.getBoundingClientRect();
-  if (rect && rect.height > 0) {
-    if (clientY < rect.top) return gapPosBesideFence(view.state, fence, "open");
-    if (clientY > rect.bottom) return gapPosBesideFence(view.state, fence, "close");
-    return gapPosBesideFence(view.state, fence, Math.abs(clientY - rect.top) <= Math.abs(clientY - rect.bottom) ? "open" : "close");
+function lineClosestToY(view: EditorView, fromLine: number, toLine: number, clientY: number) {
+  let best = view.state.doc.line(fromLine);
+  let bestDist = Infinity;
+  for (let number = fromLine; number <= toLine; number += 1) {
+    const line = view.state.doc.line(number);
+    const coords = view.coordsAtPos(line.from) ?? view.coordsAtPos(line.to);
+    if (!coords) continue;
+    const dist = clientY < coords.top ? coords.top - clientY : clientY > coords.bottom ? clientY - coords.bottom : 0;
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = line;
+    }
   }
-  return gapPosBesideFence(view.state, fence, "open");
+  return best;
+}
+
+function cursorOnLine(view: EditorView, line: { from: number; to: number }, clientX: number) {
+  const coords = view.coordsAtPos(line.from) ?? view.coordsAtPos(line.to);
+  if (!coords) return line.to;
+  const mapped = view.posAtCoords({ x: clientX, y: (coords.top + coords.bottom) / 2 });
+  if (mapped == null) return line.to;
+  if (mapped < line.from) return line.from;
+  if (mapped > line.to) return line.to;
+  return mapped;
+}
+
+function selectPreviewCursor(view: EditorView, pos: number, userEvent = "select") {
+  view.dispatch({ selection: EditorSelection.cursor(pos), userEvent });
+  view.focus();
+  return true;
+}
+
+function cursorAfterFence(view: EditorView, fence: FenceRange) {
+  if (fenceEndsDocument(view.state, fence)) return insertLineAfterFence(view, fence);
+  return selectPreviewCursor(view, gapPosBesideFence(view.state, fence, "close"));
+}
+
+function cursorBeforeFence(view: EditorView, fence: FenceRange) {
+  return selectPreviewCursor(view, gapPosBesideFence(view.state, fence, "open"));
 }
 
 function placeCursorInFenceBody(view: EditorView, clientX: number, clientY: number, fence: FenceRange) {
   const firstLine = view.state.doc.lineAt(fence.bodyFrom);
   const lastLine = view.state.doc.lineAt(fence.bodyTo);
-  const firstCoords = view.coordsAtPos(firstLine.from);
-  const line = firstCoords && clientY <= (firstCoords.top + firstCoords.bottom) / 2 ? firstLine : lastLine;
-  const coords = view.coordsAtPos(line.from);
-  if (!coords) {
-    view.dispatch({
-      selection: EditorSelection.cursor(line.to),
-      userEvent: "select.pointer",
-    });
-    return true;
-  }
-  const mapped = view.posAtCoords({ x: clientX, y: (coords.top + coords.bottom) / 2 });
+  const pos = view.posAtCoords({ x: clientX, y: clientY });
   const cursor =
-    mapped != null && mapped >= line.from && mapped <= line.to ? mapped : mapped != null && mapped < line.from ? line.from : line.to;
-  view.dispatch({ selection: EditorSelection.cursor(cursor), userEvent: "select.pointer" });
-  return true;
+    pos != null && pos >= fence.bodyFrom && pos <= fence.bodyTo
+      ? pos
+      : cursorOnLine(view, lineClosestToY(view, firstLine.number, lastLine.number, clientY), clientX);
+  return selectPreviewCursor(view, cursor);
 }
 
 function remapFencePaddingClick(event: MouseEvent, view: EditorView) {
@@ -501,49 +503,43 @@ function remapFencePaddingClick(event: MouseEvent, view: EditorView) {
   if (!target || target.closest(".sn-md-code-lang, .sn-md-code-lang-host, .sn-md-code-lang-menu")) return false;
   const x = event.clientX;
   const y = event.clientY;
-  const block = target.closest(".sn-md-codeblock");
-  const visual = visualCodeBlockAt(view, x, y);
-  const onBlock = visual ?? (block && view.contentDOM.contains(block) ? block : null);
-  if (onBlock) {
-    const fenceFrom = Number(onBlock.getAttribute("data-sn-fence"));
-    const fence = Number.isFinite(fenceFrom) ? findFenceAt(view.state, fenceFrom) : null;
-    if (!fence?.hasBody || fence.language === "mermaid") return false;
-    const pos = view.posAtCoords({ x, y });
-    if (pos != null && pos >= fence.bodyFrom && pos <= fence.bodyTo) return false;
+  const blocks = visibleCodeBlocks(view);
+  const closestBlock = target.closest(".sn-md-codeblock");
+  const containing =
+    blocks.find((item) => x >= item.rect.left && x <= item.rect.right && y >= item.rect.top && y <= item.rect.bottom) ??
+    (closestBlock && view.contentDOM.contains(closestBlock) ? { el: closestBlock as HTMLElement, rect: (closestBlock as HTMLElement).getBoundingClientRect() } : null);
+
+  if (containing) {
+    const fence = fenceForBlock(view, containing.el);
+    if (!fence) return false;
+    const lastLine = visibleLineRect(containing.el, "last");
+    const firstLine = visibleLineRect(containing.el, "first");
+    if (lastLine && y > lastLine.bottom) return cursorAfterFence(view, fence);
+    if (firstLine && y < firstLine.top) return cursorBeforeFence(view, fence);
     return placeCursorInFenceBody(view, x, y, fence);
   }
-  const between = gapBetweenCodeBlocks(view, y);
-  if (between) {
-    const belowFence = findFenceAt(view.state, Number(between.below.getAttribute("data-sn-fence")));
-    const aboveFence = findFenceAt(view.state, Number(between.above.getAttribute("data-sn-fence")));
-    const precise = view.posAtCoords({ x, y });
-    let dest: number | null = null;
-    if (precise != null) {
-      const inAbove = aboveFence != null && precise >= aboveFence.bodyFrom && precise <= aboveFence.bodyTo;
-      const inBelow = belowFence != null && precise >= belowFence.bodyFrom && precise <= belowFence.bodyTo;
-      const onFence = Boolean(
-        (aboveFence && fenceLineAt(aboveFence, precise)) || (belowFence && fenceLineAt(belowFence, precise)),
-      );
-      if (!inAbove && !inBelow && !onFence) dest = precise;
+
+  const above = [...blocks].reverse().find((item) => y > item.rect.bottom);
+  if (above) {
+    const fence = fenceForBlock(view, above.el);
+    const next = blocks.find((item) => item.el !== above.el && item.rect.top >= above.rect.bottom - 1);
+    if (fence && (!next || y < next.rect.top)) {
+      const pos = view.posAtCoords({ x, y }) ?? view.posAtCoords({ x, y }, false);
+      const fenceEnd = fence.close ? fence.close.to : fence.to;
+      if (pos == null || (pos >= fence.from && pos <= fenceEnd)) return cursorAfterFence(view, fence);
     }
-    if (dest == null && belowFence?.hasBody) dest = gapPosBesideFence(view.state, belowFence, "open");
-    if (dest == null && aboveFence?.hasBody) dest = gapPosBesideFence(view.state, aboveFence, "close");
-    if (dest == null) return false;
-    view.dispatch({ selection: EditorSelection.cursor(dest), userEvent: "select" });
-    return true;
   }
-  if (clickAfterLastFence(view, y)) return true;
-  const pos = view.posAtCoords({ x, y }) ?? view.posAtCoords({ x, y }, false);
-  if (pos == null) return false;
-  const fence = findFenceAt(view.state, pos);
-  if (!fence?.hasBody || fence.language === "mermaid") return false;
-  const inBody = pos >= fence.bodyFrom && pos <= fence.bodyTo;
-  if (!inBody && !fenceLineAt(fence, pos)) return false;
-  view.dispatch({
-    selection: EditorSelection.cursor(gapPosForOutsideClick(view, y, fence)),
-    userEvent: "select",
-  });
-  return true;
+
+  const first = blocks[0];
+  if (first && y < first.rect.top) {
+    const fence = fenceForBlock(view, first.el);
+    if (fence) {
+      const pos = view.posAtCoords({ x, y }) ?? view.posAtCoords({ x, y }, false);
+      const fenceEnd = fence.close ? fence.close.to : fence.to;
+      if (pos == null || (pos >= fence.from && pos <= fenceEnd)) return cursorBeforeFence(view, fence);
+    }
+  }
+  return false;
 }
 
 const clampFencePointer = EditorState.transactionFilter.of((tr) => {

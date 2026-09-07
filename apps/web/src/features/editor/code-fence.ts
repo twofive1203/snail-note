@@ -111,6 +111,7 @@ export function insertLineAfterFence(view: EditorView, fence: FenceRange) {
   if (after < view.state.doc.length) {
     const dest = view.state.doc.lineAt(Math.min(view.state.doc.length, after + 1)).from;
     view.dispatch({ selection: EditorSelection.cursor(dest), userEvent: "select" });
+    view.focus();
     return true;
   }
   if (view.state.readOnly || view.state.facet(EditorView.editable) === false) return false;
@@ -120,6 +121,7 @@ export function insertLineAfterFence(view: EditorView, fence: FenceRange) {
     scrollIntoView: true,
     userEvent: "input",
   });
+  view.focus();
   return true;
 }
 
