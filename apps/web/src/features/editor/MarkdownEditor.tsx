@@ -17,6 +17,7 @@ import { fenceCodeLanguage } from "./code-languages";
 import { saveKeyBinding } from "./editor-shortcuts";
 import { fenceCompleteKeymap } from "./fence-complete";
 import { livePreviewEnabledEffect, livePreviewExtensions } from "./live-preview";
+import { pasteMarkdownExtension } from "./paste-markdown";
 
 interface MarkdownEditorProps {
   value: string;
@@ -66,6 +67,7 @@ export function MarkdownEditor({
           highlightActiveLine(),
           markdown({ base: markdownLanguage, codeLanguages: fenceCodeLanguage }),
           placeholder("开始书写…"),
+          pasteMarkdownExtension(),
           fenceCompleteKeymap(),
           keymap.of([saveKeyBinding(() => onSaveRef.current()), indentWithTab, ...defaultKeymap, ...historyKeymap]),
           editable.current.of(EditorView.editable.of(!disabled)),
