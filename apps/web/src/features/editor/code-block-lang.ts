@@ -185,9 +185,10 @@ export class FenceLangWidget extends WidgetType {
     const host = document.createElement("span");
     host.className = "sn-md-code-lang-host";
     host.contentEditable = "false";
-    const button = document.createElement("button");
-    button.type = "button";
+    const button = document.createElement("span");
     button.className = "sn-md-code-lang";
+    button.tabIndex = -1;
+    button.setAttribute("role", "button");
     button.textContent = fenceLanguageLabel(this.language);
     button.setAttribute("aria-label", "切换代码语言");
     button.setAttribute("aria-haspopup", "listbox");

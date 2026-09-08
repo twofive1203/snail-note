@@ -1,5 +1,6 @@
 import { EditorSelection, Prec, type EditorState } from "@codemirror/state";
 import { type Command, type EditorView, keymap } from "@codemirror/view";
+import { closeFenceLangMenu } from "./code-block-lang";
 import { parseFenceLine } from "./code-fence";
 
 function isClosingFence(text: string, marks: string) {
@@ -53,6 +54,8 @@ export const completeFencedCodeOnEnter: Command = (view: EditorView) => {
     scrollIntoView: true,
     userEvent: "input.complete",
   });
+  closeFenceLangMenu();
+  view.focus();
   return true;
 };
 

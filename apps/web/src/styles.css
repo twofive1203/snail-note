@@ -224,6 +224,7 @@ button:disabled { cursor: default; opacity: .45; }
   line-height: 20px;
   white-space: nowrap;
   user-select: none;
+  cursor: pointer;
   opacity: 0;
   pointer-events: none;
   transition: opacity .12s ease;

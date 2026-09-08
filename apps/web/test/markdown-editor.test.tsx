@@ -420,6 +420,31 @@ describe("MarkdownEditor", () => {
     });
   });
 
+  it("keeps ``` + Enter as plaintext so typing goes into the block body", async () => {
+    const { container } = render(
+      <MarkdownEditor value="```" onChange={vi.fn()} onSave={vi.fn()} />,
+    );
+    const view = editorView(container);
+    view.dispatch({ selection: { anchor: view.state.doc.length } });
+    view.contentDOM.focus();
+    fireEvent.keyDown(view.contentDOM, { key: "Enter" });
+    expect(view.state.doc.toString()).toBe("```\n\n```");
+    expect(view.state.selection.main.head).toBe(4);
+    expect(document.querySelector(".sn-md-code-lang-menu")).toBeNull();
+    expect(document.activeElement).not.toEqual(container.querySelector(".sn-md-code-lang"));
+    const head = view.state.selection.main.head;
+    view.dispatch({
+      changes: { from: head, insert: "hello" },
+      selection: { anchor: head + 5 },
+    });
+    expect(view.state.doc.toString()).toBe("```\nhello\n```");
+    await waitFor(() => {
+      expect(container.querySelector(".sn-md-codeblock")).toBeInTheDocument();
+      expect(container.querySelector(".sn-md-code-lang")).toHaveTextContent("纯文本");
+    });
+    expect(document.querySelector(".sn-md-code-lang-menu")).toBeNull();
+  });
+
   it("applies loaded document content after the initial empty editor", async () => {
     const { container, rerender } = render(
       <MarkdownEditor disabled value="" onChange={vi.fn()} onSave={vi.fn()} syncKey="notes/a.md" />,
