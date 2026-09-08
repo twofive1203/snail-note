@@ -176,12 +176,13 @@ const codeBlockWrapper = BlockWrapper.create({
   attributes: { class: "sn-md-codeblock" },
 });
 
-function fencedCodeWrapper(active: boolean, from: number) {
+function fencedCodeWrapper(active: boolean, from: number, language = "") {
   return BlockWrapper.create({
     tagName: "div",
     attributes: {
       class: active ? "sn-md-codeblock is-active" : "sn-md-codeblock",
       "data-sn-fence": String(from),
+      "data-sn-lang": language,
     },
   });
 }
@@ -211,7 +212,9 @@ function hideLine(
   const to = line.to < state.doc.length ? line.to + 1 : line.to;
   if (line.from >= to) return;
   replacedLines.add(line.from);
-  const deco = Decoration.replace({ block: true }).range(line.from, to);
+  // inclusiveEnd must stay false so an empty body line starting at `to` is not
+  // swallowed by the hidden fence's atomic range (which would block typing).
+  const deco = Decoration.replace({ block: true, inclusiveStart: true, inclusiveEnd: false }).range(line.from, to);
   ranges.push(deco);
   atoms?.push(deco);
 }
@@ -303,11 +306,27 @@ function buildVisuals(state: EditorState): LivePreviewVisuals {
           if (closeLine) hideLine(state, closeLine, ranges, replacedLines, atoms);
           fromLine = bodyFrom;
           toLine = bodyTo;
-          ranges.push(
-            Decoration.widget({ widget: new FenceLangWidget(node.from, lang), side: 1 }).range(state.doc.line(bodyTo).to),
-          );
+          // Keep the language switcher off empty body lines. An inline widget on a
+          // blank line sits at the caret and, being contenteditable=false, swallows typing.
+          let widgetLine = state.doc.line(bodyTo);
+          for (let number = bodyTo; number >= bodyFrom; number -= 1) {
+            const line = state.doc.line(number);
+            if (line.from < line.to) {
+              widgetLine = line;
+              break;
+            }
+          }
+          if (widgetLine.from < widgetLine.to) {
+            ranges.push(
+              Decoration.widget({ widget: new FenceLangWidget(node.from, lang), side: 1 }).range(widgetLine.to),
+            );
+          }
         }
-        wrapLines(state, fromLine, toLine, wrappers, fencedCodeWrapper(revealed, node.from));
+        // An unclosed ``` line has no body yet; wrapping it would show the marks
+        // inside a code block with the caret sitting after ```.
+        if (hasBody || closeLine) {
+          wrapLines(state, fromLine, toLine, wrappers, fencedCodeWrapper(revealed, node.from, lang));
+        }
         return false;
       }
 

@@ -417,7 +417,44 @@ describe("MarkdownEditor", () => {
       const block = container.querySelector(".sn-md-codeblock");
       expect(block).toBeInTheDocument();
       expect(view.contentDOM.textContent).not.toContain("```");
+      expect(block!.querySelector(".cm-line")).toBeInTheDocument();
+      expect(block!.querySelector(".cm-line .sn-md-code-lang")).toBeNull();
     });
+  });
+
+  it("does not wrap an incomplete ``` line as a live-preview code block", async () => {
+    const { container } = render(
+      <MarkdownEditor value="```" onChange={vi.fn()} onSave={vi.fn()} />,
+    );
+    expect(container.querySelector(".sn-md-codeblock")).not.toBeInTheDocument();
+    expect(editorView(container).contentDOM.textContent).toContain("```");
+  });
+
+  it("allows typing after ``` + Enter + Enter in live preview", async () => {
+    const { container } = render(
+      <MarkdownEditor value="" onChange={vi.fn()} onSave={vi.fn()} />,
+    );
+    const view = editorView(container);
+    view.dispatch({ changes: { from: 0, insert: "```" }, selection: { anchor: 3 } });
+    view.contentDOM.focus();
+    fireEvent.keyDown(view.contentDOM, { key: "Enter" });
+    expect(view.state.doc.toString()).toBe("```\n\n```");
+    await waitFor(() => {
+      expect(container.querySelector(".sn-md-codeblock")).toBeInTheDocument();
+    });
+    fireEvent.keyDown(view.contentDOM, { key: "Enter" });
+    const head = view.state.selection.main.head;
+    view.dispatch({
+      changes: { from: head, insert: "hello" },
+      selection: { anchor: head + 5 },
+    });
+    expect(view.state.doc.toString()).toContain("hello");
+    expect(view.state.doc.toString()).toMatch(/^```\n[\s\S]*hello[\s\S]*```/);
+    const block = container.querySelector(".sn-md-codeblock");
+    expect(block).toBeInTheDocument();
+    fireEvent.mouseDown(block!);
+    expect(view.hasFocus).toBe(true);
+    expect(view.state.doc.toString()).toContain("hello");
   });
 
   it("keeps ``` + Enter as plaintext so typing goes into the block body", async () => {

@@ -182,23 +182,20 @@ export class FenceLangWidget extends WidgetType {
   }
 
   toDOM(view: EditorView) {
-    const host = document.createElement("span");
-    host.className = "sn-md-code-lang-host";
-    host.contentEditable = "false";
     const button = document.createElement("span");
     button.className = "sn-md-code-lang";
     button.tabIndex = -1;
+    button.contentEditable = "false";
     button.setAttribute("role", "button");
-    button.textContent = fenceLanguageLabel(this.language);
-    button.setAttribute("aria-label", "切换代码语言");
     button.setAttribute("aria-haspopup", "listbox");
+    button.setAttribute("aria-label", "切换代码语言");
+    button.textContent = fenceLanguageLabel(this.language);
     button.addEventListener("mousedown", (event) => {
       event.preventDefault();
       event.stopPropagation();
       openFenceLangMenu(view, button, this.fenceFrom, this.language);
     });
-    host.appendChild(button);
-    return host;
+    return button;
   }
 
   ignoreEvent() {
@@ -206,7 +203,6 @@ export class FenceLangWidget extends WidgetType {
   }
 
   destroy(dom: HTMLElement) {
-    const button = dom.querySelector(".sn-md-code-lang");
-    if (button && openMenu?.button === button) closeFenceLangMenu();
+    if (openMenu?.button === dom) closeFenceLangMenu();
   }
 }
