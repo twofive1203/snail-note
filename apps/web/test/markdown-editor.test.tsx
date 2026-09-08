@@ -71,6 +71,39 @@ describe("MarkdownEditor", () => {
     expect(container.querySelector(".cm-content")?.textContent ?? "").not.toContain("graph TD");
   });
 
+  it("renders https images in live preview", async () => {
+    const { container } = render(
+      <MarkdownEditor
+        value={"hello\n\n![](https://example.com/pic.png)\n"}
+        onChange={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+    await waitFor(() => {
+      const image = container.querySelector(".sn-md-image img");
+      expect(image).toHaveAttribute("src", "//example.com/pic.png");
+      expect(image).toHaveAttribute("referrerpolicy", "no-referrer");
+    });
+    expect(container.querySelector(".cm-content")?.textContent ?? "").toContain("hello");
+    expect(container.querySelector(".cm-content")?.textContent ?? "").not.toContain("example.com");
+  });
+
+  it("renders protocol-relative images in live preview", async () => {
+    const { container } = render(
+      <MarkdownEditor
+        value={"hello\n\n![](//upload-images.jianshu.io/a.png?x|y)\n"}
+        onChange={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+    await waitFor(() => {
+      expect(container.querySelector(".sn-md-image img")).toHaveAttribute(
+        "src",
+        "//upload-images.jianshu.io/a.png?x|y",
+      );
+    });
+  });
+
   it("renders fenced code like preview in live mode", async () => {
     const onChange = vi.fn();
     const { container } = render(
@@ -95,6 +128,7 @@ describe("MarkdownEditor", () => {
       ".markdown-editor.is-live .sn-md-codeblock",
       ".markdown-editor.is-live .sn-md-mermaid",
       ".markdown-editor.is-live .sn-md-hr",
+      ".markdown-editor.is-live .sn-md-image",
     ]) {
       const start = css.lastIndexOf(`${selector} {`);
       expect(start, selector).toBeGreaterThan(-1);

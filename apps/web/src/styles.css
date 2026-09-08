@@ -164,6 +164,25 @@ button:disabled { cursor: default; opacity: .45; }
   border: 0;
   border-top: 1px solid var(--border);
 }
+.markdown-editor.is-live .sn-md-image {
+  margin: 0;
+  padding: .4em 0;
+  line-height: 0;
+}
+.markdown-editor.is-live .sn-md-image img {
+  max-width: 100%;
+  max-height: 480px;
+  height: auto;
+  border-radius: 6px;
+}
+.markdown-editor.is-live .sn-md-image.is-error {
+  color: var(--dim);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.markdown-editor.is-live .sn-md-image-fallback {
+  margin-top: 6px;
+}
 .markdown-editor.is-live .sn-md-codeblock {
   position: relative;
   overflow-x: auto;

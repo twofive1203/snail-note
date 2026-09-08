@@ -81,6 +81,15 @@ describe("htmlToMarkdown", () => {
     expect(markdown).not.toMatch(/\*\*\s*\*\*/);
   });
 
+  it("normalizes protocol-relative images and wraps query pipes", () => {
+    const markdown = htmlToMarkdown(
+      `<img src="//upload-images.jianshu.io/upload_images/a.png?imageMogr2/auto-orient/strip|imageView2/2/w/1240" alt="cover">`,
+    );
+    expect(markdown).toBe(
+      "![cover](<https://upload-images.jianshu.io/upload_images/a.png?imageMogr2/auto-orient/strip|imageView2/2/w/1240>)",
+    );
+  });
+
   it("drops javascript URLs", () => {
     const markdown = htmlToMarkdown(`<p><a href="javascript:alert(1)">click</a></p>`);
     expect(markdown).toContain("click");

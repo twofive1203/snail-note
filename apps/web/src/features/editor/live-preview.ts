@@ -11,6 +11,7 @@ import {
   insertLineAfterFence,
   type FenceRange,
 } from "./code-fence";
+import { toDisplayImageSrc } from "./image-url";
 import { mountMermaid } from "./mermaid-render";
 
 const HIDDEN_MARKS = new Set([
@@ -95,6 +96,50 @@ class RuleWidget extends WidgetType {
   }
 }
 
+class ImageWidget extends WidgetType {
+  constructor(
+    readonly src: string,
+    readonly alt: string,
+  ) {
+    super();
+  }
+
+  eq(other: ImageWidget) {
+    return this.src === other.src && this.alt === other.alt;
+  }
+
+  toDOM(view: EditorView) {
+    const host = document.createElement("div");
+    host.className = "sn-md-image";
+    const img = document.createElement("img");
+    img.src = this.src;
+    img.alt = this.alt;
+    img.setAttribute("referrerpolicy", "no-referrer");
+    img.draggable = false;
+    img.addEventListener("load", () => view.requestMeasure());
+    img.addEventListener("error", () => {
+      host.classList.add("is-error");
+      if (!host.querySelector(".sn-md-image-fallback")) {
+        const fallback = document.createElement("div");
+        fallback.className = "sn-md-image-fallback";
+        fallback.textContent = this.alt ? `${this.alt}（图片无法加载）` : "图片无法加载";
+        host.append(fallback);
+      }
+      view.requestMeasure();
+    });
+    host.append(img);
+    return host;
+  }
+
+  ignoreEvent() {
+    return false;
+  }
+
+  get estimatedHeight() {
+    return 180;
+  }
+}
+
 class MermaidWidget extends WidgetType {
   constructor(readonly source: string) {
     super();
@@ -149,6 +194,40 @@ function fenceLanguage(state: EditorState, node: { node: { getChild(name: string
   const info = node.node.getChild("CodeInfo");
   if (!info) return "";
   return state.doc.sliceString(info.from, info.to).trim().split(/\s+/)[0]?.toLowerCase() ?? "";
+}
+
+function addImageWidget(
+  state: EditorState,
+  node: { from: number; to: number; node: { getChild(name: string): { from: number; to: number } | null } },
+  ranges: Range<Decoration>[],
+  replacedLines: Set<number>,
+): boolean {
+  const urlNode = node.node.getChild("URL");
+  if (!urlNode) return false;
+  const src = toDisplayImageSrc(state.doc.sliceString(urlNode.from, urlNode.to));
+  if (!src) return false;
+  const raw = state.doc.sliceString(node.from, node.to);
+  const closing = raw.indexOf("]");
+  const alt = raw.startsWith("![") && closing > 1 ? raw.slice(2, closing) : "";
+  const widget = new ImageWidget(src, alt);
+  const line = state.doc.lineAt(node.from);
+  if (line.text.trim() === raw) {
+    const to = line.to < state.doc.length ? line.to + 1 : line.to;
+    if (line.from >= to) return false;
+    replacedLines.add(line.from);
+    ranges.push(
+      Decoration.replace({
+        widget,
+        block: true,
+        inclusiveStart: true,
+        inclusiveEnd: false,
+      }).range(line.from, to),
+    );
+    return true;
+  }
+  if (node.from >= node.to) return false;
+  ranges.push(Decoration.replace({ widget, atomic: true }).range(node.from, node.to));
+  return true;
 }
 
 function fenceBody(state: EditorState, node: { node: { getChildren(name: string): { from: number; to: number }[] } }) {
@@ -357,6 +436,8 @@ function buildVisuals(state: EditorState): LivePreviewVisuals {
         ranges.push(Decoration.replace({ widget: new RuleWidget(), atomic: true }).range(node.from, node.to));
         return;
       }
+
+      if (node.name === "Image" && addImageWidget(state, node, ranges, replacedLines)) return false;
 
       if (HIDDEN_MARKS.has(node.name)) {
         if (node.name === "CodeMark" && node.node.parent?.name !== "InlineCode") return;

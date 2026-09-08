@@ -9,7 +9,10 @@ function isMermaidCode(code: Element) {
 }
 
 export function MarkdownPreview({ content }: { content: string }) {
-  const html = useMemo(() => DOMPurify.sanitize(renderMarkdown(content)), [content]);
+  const html = useMemo(
+    () => DOMPurify.sanitize(renderMarkdown(content), { ADD_ATTR: ["referrerpolicy"] }),
+    [content],
+  );
   const root = useRef<HTMLElement>(null);
 
   useEffect(() => {

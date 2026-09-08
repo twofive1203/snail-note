@@ -1,6 +1,7 @@
 import hljs from "highlight.js/lib/common";
 import { marked } from "marked";
 import { fenceInfoName } from "./code-languages";
+import { toDisplayImageSrc } from "./image-url";
 
 const PREVIEW_ALIASES: Record<string, string> = {
   curl: "bash",
@@ -28,6 +29,12 @@ function previewLanguage(info?: string) {
 marked.use({
   breaks: true,
   renderer: {
+    image({ href, title, text }) {
+      const src = escapeHtml(toDisplayImageSrc(href ?? "") ?? href ?? "");
+      const alt = escapeHtml(text ?? "");
+      const titleAttr = title ? ` title="${escapeHtml(title)}"` : "";
+      return `<img src="${src}" alt="${alt}" referrerpolicy="no-referrer"${titleAttr}>`;
+    },
     code({ text, lang }) {
       const name = fenceInfoName(lang ?? "");
       if (name === "mermaid") {

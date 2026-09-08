@@ -1,4 +1,5 @@
 import TurndownService from "turndown";
+import { markdownLinkDestination, toMarkdownImageSrc } from "./image-url";
 
 const START_FRAGMENT = "<!--StartFragment-->";
 const END_FRAGMENT = "<!--EndFragment-->";
@@ -66,6 +67,10 @@ function getConverter(): TurndownService {
     filter: (node) => node.nodeName === "IMG" && isUnsafeUrl(node.getAttribute("src")),
     replacement: () => "",
   });
+  service.addRule("markdownImage", {
+    filter: "img",
+    replacement: (_content, node) => markdownImage(node),
+  });
   service.addRule("unwrapGoogleDocsBold", {
     filter: (node) => (node.nodeName === "B" || node.nodeName === "STRONG") && isNormalWeight(node),
     replacement: (content) => content,
@@ -103,6 +108,16 @@ function getConverter(): TurndownService {
   });
   converter = service;
   return service;
+}
+
+function markdownImage(node: HTMLElement): string {
+  const src = toMarkdownImageSrc(node.getAttribute("src"));
+  if (!src) return "";
+  const alt = (node.getAttribute("alt") ?? "").replaceAll("[", "\\[");
+  const dest = markdownLinkDestination(src);
+  const title = node.getAttribute("title");
+  if (!title) return `![${alt}](${dest})`;
+  return `![${alt}](${dest} "${title.replaceAll('"', '\\"')}")`;
 }
 
 function normalizePastedMarkdown(markdown: string): string {
