@@ -2,7 +2,13 @@ import { lstat, realpath } from "node:fs/promises";
 import path from "node:path";
 import { NotebookError } from "./notebook-errors.js";
 
-export type NotebookPathKind = "directory" | "markdown" | "entry";
+export type NotebookPathKind = "directory" | "markdown" | "asset" | "entry";
+
+const ASSET_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
+
+export function isAssetPath(relativePath: string): boolean {
+  return ASSET_EXTENSIONS.has(path.posix.extname(relativePath).toLowerCase());
+}
 
 function isWithin(root: string, candidate: string): boolean {
   const relative = path.relative(root, candidate);
@@ -46,6 +52,9 @@ export async function resolveNotebookPath(
   }
   if (kind === "markdown" && path.posix.extname(normalized).toLowerCase() !== ".md") {
     throw new NotebookError("UNSUPPORTED_FILE_TYPE", "笔记文件必须使用 .md 扩展名");
+  }
+  if (kind === "asset" && !isAssetPath(normalized)) {
+    throw new NotebookError("UNSUPPORTED_FILE_TYPE", "只支持 png、jpg、gif 或 webp 图片");
   }
 
   const canonicalRoot = await realpath(notebookRoot);

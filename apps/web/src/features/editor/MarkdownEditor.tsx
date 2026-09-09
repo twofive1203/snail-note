@@ -16,7 +16,9 @@ import { oneDarkHighlightStyle, oneDarkTheme } from "@codemirror/theme-one-dark"
 import { fenceCodeLanguage } from "./code-languages";
 import { saveKeyBinding } from "./editor-shortcuts";
 import { fenceCompleteKeymap } from "./fence-complete";
+import type { NoteImageContext } from "./image-url";
 import { livePreviewEnabledEffect, livePreviewExtensions } from "./live-preview";
+import { noteImageContextFacet } from "./note-image-context";
 import { pasteMarkdownExtension } from "./paste-markdown";
 
 interface MarkdownEditorProps {
@@ -24,6 +26,8 @@ interface MarkdownEditorProps {
   disabled?: boolean;
   livePreview?: boolean;
   syncKey?: string;
+  notebookId?: string | null;
+  notePath?: string | null;
   onChange: (value: string) => void;
   onSave: () => void;
 }
@@ -36,11 +40,17 @@ function liveChrome() {
   return [];
 }
 
+function imageContext(notebookId?: string | null, notePath?: string | null): NoteImageContext | null {
+  return notebookId && notePath ? { notebookId, notePath } : null;
+}
+
 export function MarkdownEditor({
   value,
   disabled = false,
   livePreview = true,
   syncKey,
+  notebookId,
+  notePath,
   onChange,
   onSave,
 }: MarkdownEditorProps) {
@@ -50,6 +60,7 @@ export function MarkdownEditor({
   const onSaveRef = useRef(onSave);
   const editable = useRef(new Compartment());
   const chrome = useRef(new Compartment());
+  const noteImage = useRef(new Compartment());
   const syncedKey = useRef<string | null>(null);
   const skipModeEffect = useRef(true);
   onChangeRef.current = onChange;
@@ -71,6 +82,7 @@ export function MarkdownEditor({
           fenceCompleteKeymap(),
           keymap.of([saveKeyBinding(() => onSaveRef.current()), indentWithTab, ...defaultKeymap, ...historyKeymap]),
           editable.current.of(EditorView.editable.of(!disabled)),
+          noteImage.current.of(noteImageContextFacet.of(imageContext(notebookId, notePath))),
           oneDarkTheme,
           livePreviewExtensions(livePreview),
           chrome.current.of(livePreview ? liveChrome() : sourceChrome()),
@@ -120,6 +132,12 @@ export function MarkdownEditor({
   useEffect(() => {
     view.current?.dispatch({ effects: editable.current.reconfigure(EditorView.editable.of(!disabled)) });
   }, [disabled]);
+
+  useEffect(() => {
+    view.current?.dispatch({
+      effects: noteImage.current.reconfigure(noteImageContextFacet.of(imageContext(notebookId, notePath))),
+    });
+  }, [notebookId, notePath]);
 
   useEffect(() => {
     if (skipModeEffect.current) {

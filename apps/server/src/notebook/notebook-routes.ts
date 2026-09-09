@@ -3,6 +3,7 @@ import type {
   CreateNoteRequest,
   CreateNotebookRequest,
   MoveEntryRequest,
+  SaveAssetRequest,
   SaveNoteRequest,
 } from "@snail-note/shared";
 import type { FastifyInstance } from "fastify";
@@ -89,4 +90,30 @@ export async function registerNotebookRoutes(app: FastifyInstance, registry: Not
     await registry.service(request.params.notebookId).deleteEntry(requireString(request.query.path, "path"));
     return reply.code(204).send();
   });
+
+  app.get<{ Params: NotebookParams; Querystring: { path?: string } }>("/api/notebooks/:notebookId/asset", async (request, reply) => {
+    const asset = await registry.service(request.params.notebookId).readAsset(requireString(request.query.path, "path"));
+    return reply
+      .header("X-Content-Type-Options", "nosniff")
+      .header("Cache-Control", "private, max-age=31536000, immutable")
+      .type(asset.contentType)
+      .send(asset.buffer);
+  });
+
+  app.post<{ Params: NotebookParams; Body: SaveAssetRequest }>(
+    "/api/notebooks/:notebookId/asset",
+    { bodyLimit: 12 * 1024 * 1024 },
+    async (request, reply) => {
+      const body = request.body ?? ({} as SaveAssetRequest);
+      const notePath = requireString(body.notePath, "notePath");
+      const service = registry.service(request.params.notebookId);
+      if (typeof body.url === "string" && body.url.trim()) {
+        return reply.code(201).send(await service.importRemoteImage(notePath, body.url.trim()));
+      }
+      if (typeof body.data === "string" && body.data.trim()) {
+        return reply.code(201).send(await service.saveAssetFromBase64(notePath, body.data.trim()));
+      }
+      throw new NotebookError("INVALID_OPERATION", "请提供图片地址或图片数据");
+    },
+  );
 }

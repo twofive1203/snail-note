@@ -8,6 +8,8 @@ import type {
   NotebookListResponse,
   NotebookSummary,
   NotebookTreeResponse,
+  SaveAssetRequest,
+  SavedAsset,
   SaveNoteRequest,
 } from "@snail-note/shared";
 
@@ -50,4 +52,6 @@ export const notebookApi = {
   createDirectory: (notebookId: string, body: CreateDirectoryRequest) => request<{ path: string }>(notebookUrl(notebookId, "/directory"), { method: "POST", body: JSON.stringify(body) }),
   move: (notebookId: string, body: MoveEntryRequest) => request<{ path: string }>(notebookUrl(notebookId, "/entry"), { method: "PATCH", body: JSON.stringify(body) }),
   remove: (notebookId: string, path: string) => request<void>(`${notebookUrl(notebookId, "/entry")}?path=${encodeURIComponent(path)}`, { method: "DELETE" }),
+  saveAsset: (notebookId: string, body: SaveAssetRequest) =>
+    request<SavedAsset>(notebookUrl(notebookId, "/asset"), { method: "POST", body: JSON.stringify(body) }),
 };

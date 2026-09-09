@@ -44,4 +44,25 @@ describe("NotebookService", () => {
   it("refuses to delete a non-empty directory", async () => {
     await expect(notebook.deleteEntry("中文 目录")).rejects.toMatchObject({ code: "DIRECTORY_NOT_EMPTY" });
   });
+
+  it("saves a pasted image beside the note and hides the assets folder", async () => {
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwADhQGAWjR9awAAAABJRU5ErkJggg==",
+      "base64",
+    );
+    const saved = await notebook.saveAssetFromBytes("中文 目录/旧笔记.md", png);
+    expect(saved.markdownPath).toMatch(/^旧笔记\.assets\/.+\.png$/);
+    expect(saved.path).toBe(`中文 目录/${saved.markdownPath}`);
+    const read = await notebook.readAsset(saved.path);
+    expect(read.contentType).toBe("image/png");
+    expect(read.buffer.equals(png)).toBe(true);
+    const tree = await notebook.getTree();
+    expect(JSON.stringify(tree)).not.toContain(".assets");
+  });
+
+  it("rejects importing images from localhost", async () => {
+    await expect(notebook.importRemoteImage("中文 目录/旧笔记.md", "http://127.0.0.1/secret.png")).rejects.toMatchObject({
+      code: "INVALID_OPERATION",
+    });
+  });
 });

@@ -13,6 +13,7 @@ import {
 } from "./code-fence";
 import { toDisplayImageSrc } from "./image-url";
 import { mountMermaid } from "./mermaid-render";
+import { noteImageContextFacet } from "./note-image-context";
 
 const HIDDEN_MARKS = new Set([
   "HeaderMark",
@@ -204,7 +205,7 @@ function addImageWidget(
 ): boolean {
   const urlNode = node.node.getChild("URL");
   if (!urlNode) return false;
-  const src = toDisplayImageSrc(state.doc.sliceString(urlNode.from, urlNode.to));
+  const src = toDisplayImageSrc(state.doc.sliceString(urlNode.from, urlNode.to), state.facet(noteImageContextFacet));
   if (!src) return false;
   const raw = state.doc.sliceString(node.from, node.to);
   const closing = raw.indexOf("]");
@@ -493,7 +494,7 @@ const livePreviewDecorations = StateField.define<LivePreviewVisuals>({
         atoms: visuals.atoms.map(tr.changes),
       };
     }
-    if (tr.docChanged || !tr.startState.selection.eq(tr.state.selection) || tr.startState.field(mouseSelecting) || !tr.startState.field(livePreviewEnabled)) {
+    if (tr.docChanged || !tr.startState.selection.eq(tr.state.selection) || tr.startState.field(mouseSelecting) || !tr.startState.field(livePreviewEnabled) || tr.startState.facet(noteImageContextFacet) !== tr.state.facet(noteImageContextFacet)) {
       return safeBuildVisuals(tr.state);
     }
     return visuals;

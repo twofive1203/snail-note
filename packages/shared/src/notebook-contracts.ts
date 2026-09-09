@@ -64,6 +64,19 @@ export interface MoveEntryRequest {
   newPath: string;
 }
 
+export interface SaveAssetRequest {
+  notePath: string;
+  url?: string;
+  contentType?: string;
+  filename?: string;
+  data?: string;
+}
+
+export interface SavedAsset {
+  path: string;
+  markdownPath: string;
+}
+
 export interface SearchMatch {
   path: string;
   title: string;

@@ -26,6 +26,13 @@ describe("MarkdownPreview", () => {
     expect(container.querySelector("img")).toHaveAttribute("src", "//upload-images.jianshu.io/a.png?x|y");
   });
 
+  it("rewrites relative images to the notebook asset API", () => {
+    const { container } = render(
+      <MarkdownPreview content={"![](hello.assets/pic.png)"} notebookId="nb1" notePath="hello.md" />,
+    );
+    expect(container.querySelector("img")).toHaveAttribute("src", "/api/notebooks/nb1/asset?path=hello.assets%2Fpic.png");
+  });
+
   it("sanitizes executable HTML", () => {
     const { container } = render(<MarkdownPreview content={'<img src="x" onerror="alert(1)"><script>alert(1)</script>'} />);
     expect(container.querySelector("script")).not.toBeInTheDocument();

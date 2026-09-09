@@ -1,6 +1,7 @@
 import { open, readdir, readFile, rename, rm, rmdir, stat, writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
-import type { NoteDocument, NotebookNode } from "@snail-note/shared";
+import type { NoteDocument, NotebookNode, SavedAsset } from "@snail-note/shared";
+import { detectImage, fetchRemoteImage, IMAGE_MAX_BYTES } from "./asset-fetch.js";
 import { NotebookError, toNotebookError } from "./notebook-errors.js";
 import { resolveNotebookPath } from "./notebook-path.js";
 
@@ -115,6 +116,49 @@ export class NotebookService {
     }
   }
 
+  async readAsset(relativePath: string): Promise<{ buffer: Buffer; contentType: string }> {
+    const resolved = await resolveNotebookPath(this.root, relativePath, "asset");
+    try {
+      const metadata = await stat(resolved.absolutePath);
+      if (!metadata.isFile()) throw new NotebookError("INVALID_OPERATION", "目标不是图片文件");
+      const buffer = await readFile(resolved.absolutePath);
+      const kind = detectImage(buffer);
+      if (!kind) throw new NotebookError("UNSUPPORTED_FILE_TYPE", "文件不是支持的图片");
+      return { buffer, contentType: kind.contentType };
+    } catch (error) {
+      throw toNotebookError(error, "读取图片失败");
+    }
+  }
+
+  async saveAssetFromBytes(notePath: string, buffer: Buffer): Promise<SavedAsset> {
+    if (buffer.length > IMAGE_MAX_BYTES) throw new NotebookError("INVALID_OPERATION", "图片超过 8MB 限制");
+    const kind = detectImage(buffer);
+    if (!kind) throw new NotebookError("UNSUPPORTED_FILE_TYPE", "文件不是支持的图片");
+    const note = await resolveNotebookPath(this.root, notePath, "markdown");
+    const folder = assetFolderForNote(note.relativePath);
+    const filename = await this.unusedAssetName(folder, kind.ext);
+    const relativePath = `${folder}/${filename}`;
+    const resolved = await resolveNotebookPath(this.root, relativePath, "asset");
+    try {
+      await mkdir(path.dirname(resolved.absolutePath), { recursive: true });
+      await writeFile(resolved.absolutePath, buffer);
+      return { path: resolved.relativePath, markdownPath: `${path.posix.basename(folder)}/${filename}` };
+    } catch (error) {
+      throw toNotebookError(error, "保存图片失败");
+    }
+  }
+
+  async saveAssetFromBase64(notePath: string, data: string): Promise<SavedAsset> {
+    const buffer = Buffer.from(data, "base64");
+    if (!buffer.length) throw new NotebookError("INVALID_OPERATION", "图片数据无效");
+    return this.saveAssetFromBytes(notePath, buffer);
+  }
+
+  async importRemoteImage(notePath: string, url: string): Promise<SavedAsset> {
+    const buffer = await fetchRemoteImage(url);
+    return this.saveAssetFromBytes(notePath, buffer);
+  }
+
   async listMarkdownFiles(): Promise<string[]> {
     const files: string[] = [];
     const walk = async (absoluteDirectory: string, relativeDirectory: string): Promise<void> => {
@@ -131,6 +175,21 @@ export class NotebookService {
     return files;
   }
 
+  private async unusedAssetName(folder: string, ext: string): Promise<string> {
+    const stamp = new Date().toISOString().replaceAll("-", "").replaceAll(":", "").replace(/\.\d+Z$/, "Z").replace("T", "-");
+    for (let index = 0; index < 50; index += 1) {
+      const name = index === 0 ? `${stamp}${ext}` : `${stamp}-${index}${ext}`;
+      const resolved = await resolveNotebookPath(this.root, `${folder}/${name}`, "asset");
+      try {
+        await stat(resolved.absolutePath);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return name;
+        throw toNotebookError(error, "保存图片失败");
+      }
+    }
+    throw new NotebookError("IO_ERROR", "无法生成图片文件名");
+  }
+
   private async readDirectory(absoluteDirectory: string, relativeDirectory: string): Promise<NotebookNode[]> {
     let entries;
     try {
@@ -142,6 +201,7 @@ export class NotebookService {
     const nodes: NotebookNode[] = [];
     for (const entry of entries) {
       if (entry.isSymbolicLink() || entry.name.startsWith(".")) continue;
+      if (entry.isDirectory() && entry.name.endsWith(".assets")) continue;
       if (!entry.isDirectory() && !(entry.isFile() && path.extname(entry.name).toLowerCase() === ".md")) continue;
       const relative = relativeDirectory ? `${relativeDirectory}/${entry.name}` : entry.name;
       const absolute = path.join(absoluteDirectory, entry.name);
@@ -160,4 +220,11 @@ export class NotebookService {
       return left.name.localeCompare(right.name, "zh-CN");
     });
   }
+}
+
+function assetFolderForNote(notePath: string): string {
+  if (!notePath.toLowerCase().endsWith(".md")) {
+    throw new NotebookError("UNSUPPORTED_FILE_TYPE", "笔记文件必须使用 .md 扩展名");
+  }
+  return `${notePath.slice(0, -3)}.assets`;
 }

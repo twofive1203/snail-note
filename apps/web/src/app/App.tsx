@@ -409,9 +409,9 @@ export function App() {
               <>
                 <div className="editor-pane">
                   {note.loading ? <div className="pane-loading">正在加载…</div> : null}
-                  <MarkdownEditor value={note.content} disabled={note.loading} livePreview={livePreview} syncKey={currentPath ?? undefined} onChange={note.setContent} onSave={() => void note.save().then((saved) => saved && showToast("已保存"))} />
+                  <MarkdownEditor value={note.content} disabled={note.loading} livePreview={livePreview} syncKey={currentPath ?? undefined} notebookId={activeNotebookId} notePath={currentPath} onChange={note.setContent} onSave={() => void note.save().then((saved) => saved && showToast("已保存"))} />
                 </div>
-                <div className="preview-pane"><MarkdownPreview content={note.content} /></div>
+                <div className="preview-pane"><MarkdownPreview content={note.content} notebookId={activeNotebookId} notePath={currentPath} /></div>
               </>
             )}
           </div>

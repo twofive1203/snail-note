@@ -80,4 +80,35 @@ describe("notebook API", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json().matches[0]).toMatchObject({ path: "hello.md", line: 2 });
   });
+
+  it("stores and serves a notebook image", async () => {
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwADhQGAWjR9awAAAABJRU5ErkJggg==",
+      "base64",
+    );
+    const created = await app.inject({
+      method: "POST",
+      url: `/api/notebooks/${notebookId}/asset`,
+      payload: { notePath: "hello.md", data: png.toString("base64") },
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json().markdownPath).toMatch(/^hello\.assets\/.+\.png$/);
+    const served = await app.inject({
+      method: "GET",
+      url: `/api/notebooks/${notebookId}/asset?path=${encodeURIComponent(created.json().path)}`,
+    });
+    expect(served.statusCode).toBe(200);
+    expect(String(served.headers["content-type"])).toMatch(/image\/png/);
+    expect(Buffer.from(served.rawPayload).equals(png)).toBe(true);
+  });
+
+  it("rejects fetching a private image URL", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: `/api/notebooks/${notebookId}/asset`,
+      payload: { notePath: "hello.md", url: "http://127.0.0.1/x.png" },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe("INVALID_OPERATION");
+  });
 });

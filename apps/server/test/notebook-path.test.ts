@@ -40,6 +40,18 @@ describe("resolveNotebookPath", () => {
     });
   });
 
+  it("accepts image asset paths", async () => {
+    const root = await createRoot();
+    const resolved = await resolveNotebookPath(root, "note.assets/pic.png", "asset");
+    expect(resolved.relativePath).toBe("note.assets/pic.png");
+  });
+
+  it("rejects non-image asset paths", async () => {
+    await expect(resolveNotebookPath(await createRoot(), "note.assets/pic.svg", "asset")).rejects.toMatchObject({
+      code: "UNSUPPORTED_FILE_TYPE",
+    });
+  });
+
   it("rejects a symlink that escapes the notebook", async () => {
     const root = await createRoot();
     const outside = await createRoot();
